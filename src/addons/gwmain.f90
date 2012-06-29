@@ -118,16 +118,14 @@ if (gw_mode.eq.0) then
        Eqp=dcmplx(evalsvnr(i,ik))+ &
            Zf*(gw_self_energy(1,i,ikloc) -dcmplx(vxcnk(i,ik)))
        write(154,'(I5,1X,6f16.6)') i,real(Eqp)*ha2ev, &
-                                    evalsvnr(i,ik)*ha2ev,vxcnk(i,ik)*ha2ev, &
-                                 real(gw_self_energy(1,i,ikloc))*ha2ev, &
-                                 real(self_energy_x(i,ikloc))*ha2ev,real(Zf)
-
+        &evalsvnr(i,ik)*ha2ev,vxcnk(i,ik)*ha2ev, &
+        &real(gw_self_energy(1,i,ikloc))*ha2ev, &
+        &real(self_energy_x(i,ikloc))*ha2ev,real(Zf)
       enddo !i
       write(154,*) "Done!"
       close(154)
     enddo !ikloc
   endif
-!!!!!!!!!!!!!!!!!!!!!
 else
   if (mpi_grid_root((/dim_q/))) then
     do ikloc=1,nkptnrloc
