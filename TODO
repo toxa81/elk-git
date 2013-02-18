@@ -6,14 +6,11 @@
 * [?] more compact representation for wave-functions
 * parallelize matrix elements over G, not over interband transitions
 * symmetry: lattice+magnetic
-* timers in new sic code
 
 * the main Elk code is diverging; at least, merge the k-point generation
-* [???] Light version of the code without EXX, OEP, Hartree-Fock...
 * [?] split source to levels (like in blas): basic subroutines, generic lapw subroutiens, main elk subroutines
 
-* SIC code: optimize dot product
-            xml output of important variables
-            automatic generation of r-poles; different b in exp for r-mesh
-            remove number of spherical points form input
-            
+* name change (in my code) for what is "forward" and "backward" spherical harmonic transform
+* rho may have tiny negative values (like -10^-16); not good for xc potentials
+* lmaxapw in response
+

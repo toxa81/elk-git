@@ -1,13 +1,15 @@
-subroutine sic_genvme(fout)
+subroutine sic_genvme(fout,iter)
 use modmain
 use mod_sic
 use mod_hdf5
 implicit none
 integer, intent(in) :: fout
+integer, intent(in) :: iter
 !
 integer i,j,n,i1,j1,n1,vl(3)
 real(8) t1,t2,pos1(3),pos2(3)
 complex(8) me1,me2,zt1,zt2
+character*20 fname
 !
 if (wproc) then
   write(fout,*)
@@ -15,20 +17,20 @@ if (wproc) then
   write(fout,'("matrix elements")')
   write(fout,'(80("="))')
 endif
-! measure time for one me
-if (sic_me_cutoff.gt.1.d0) then
-  pos1=0.d0
-  pos2=1.d0 
-  call timer_start(t_sic_me,reset=.true.)
-  me1=s_spinor_dotp(pos1,pos2,s_wvlm(1,1,1,1),s_wlm(1,1,1,1))
-  call timer_stop(t_sic_me)
-  if (wproc) then
-    write(fout,*)
-    write(fout,'("time for one matrix element : ",F8.3," sec.")')&
-      &timer_get_value(t_sic_me)
-    call flushifc(fout)
-  endif
-endif
+!! measure time for one me
+!if (sic_me_cutoff.gt.1.d0) then
+!  pos1=0.d0
+!  pos2=1.d0 
+!  call timer_start(t_sic_me,reset=.true.)
+!  me1=s_spinor_dotp(pos1,pos2,s_wvlm(1,1,1,1),s_wlm(1,1,1,1))
+!  call timer_stop(t_sic_me)
+!  if (wproc) then
+!    write(fout,*)
+!    write(fout,'("time for one matrix element : ",F8.3," sec.")')&
+!      &timer_get_value(t_sic_me)
+!    call flushifc(fout)
+!  endif
+!endif
 call timer_start(t_sic_me,reset=.true.)
 call sic_genvme_dotp(.false.)
 ! check localization criterion 
@@ -53,8 +55,7 @@ enddo
 do j=1,sic_wantran%nwan
   n=sic_wantran%iwan(j)
   if (sic_apply(n).eq.3) then
-    pos1=0.d0
-    zt1=s_spinor_dotp(pos1,pos1,s_wvlm(1,1,1,j),s_wvlm(1,1,1,j))
+    zt1=s_spinor_dotp_lm(s_wvlm(1,1,1,j),s_wvlm(1,1,1,j))
     zt2=zzero
     do i=1,sic_wantran%nwt
       if (n.eq.sic_wantran%iwt(1,i)) then
@@ -93,11 +94,44 @@ if (wproc) then
     write(fout,'("  n : ",I4,8X,2G18.10)')n,dreal(sic_vme(i)),dimag(sic_vme(i))
   enddo  
   write(fout,*)
-  write(fout,'("done in : ",F8.3," sec.")')timer_get_value(t_sic_me)
+  write(fout,'("done in (total, average) : ",2F8.3," sec.")')timer_get_value(t_sic_me),timer_get_value(t_sic_me)/sic_wantran%nwt
   write(fout,*)
   call flushifc(fout)
 endif
+
+! filter out small marix elements
+!do i=1,sic_wantran%nwt
+!  if (abs(sic_vme(i)).lt.1d-6) sic_vme(i)=zzero
+!enddo
+
+!do i=1,sic_wantran%nwt
+!  t1=abs(dreal(sic_vme(i)))
+!  t1=int(t1*100000)/100000.d0
+!  t1=sign(t1,dreal(sic_vme(i)))
+!  sic_vme(i)=dcmplx(t1,0.d0)
+!enddo
+
+
+if (wproc) then
+  write(fname,'("vme_",I3.3,".out")')iter
+  open(1100,file=trim(adjustl(fname)),form="FORMATTED",status="REPLACE")
+  do i=1,sic_wantran%nwt
+    n=sic_wantran%iwt(1,i)
+    n1=sic_wantran%iwt(2,i)
+    vl(:)=sic_wantran%iwt(3:5,i)
+    write(1100,'(3G18.10,2I3,6X,3I3)')abs(sic_vme(i)),dreal(sic_vme(i)),dimag(sic_vme(i)),n,n1,vl
+  enddo
+  close(1100)
+endif
+
+
 xml_info%sic_vme_rms=0.d0
 xml_info%sic_vme_err=t2
+!if (t2.gt.1d-6) sic_umtrx_eps=2*log(1+0.1/t2)
+if (wproc) then
+  write(fout,*)
+  write(fout,'("sic_umtrx_eps : ",G18.10)')sic_umtrx_eps
+  write(fout,*)
+endif
 return
 end

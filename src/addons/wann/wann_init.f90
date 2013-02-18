@@ -55,18 +55,22 @@ if (.not.allocated(wannier_prjlo)) then
   allocate(wannier_prjlo(32,wann_natom))
   wannier_prjlo=1
 endif
+if (.not.allocated(wan_complex)) then
+  allocate(wan_complex(32,wann_natom))
+  wan_complex=0
+endif
 
 if (allocated(nwannias)) deallocate(nwannias)
 allocate(nwannias(natmtot))
 nwannias=0
 if (mpi_grid_root()) then     
-  open(100,file='WANNIER.OUT',form='formatted',status='replace')
-  write(100,'("number of WF atoms : ", I4)')wann_natom
-  write(100,'("number of WF orbital groups : ", I4)')wann_norbgrp
-  write(100,'("number of WF types : ", I4)')wann_ntype
-  write(100,*)
-  write(100,'("total number of WF : ", I4)')nwantot
-  write(100,*)
+  open(1000,file='WANNIER.OUT',form='formatted',status='replace')
+  write(1000,'("number of WF atoms : ", I4)')wann_natom
+  write(1000,'("number of WF orbital groups : ", I4)')wann_norbgrp
+  write(1000,'("number of WF types : ", I4)')wann_ntype
+  write(1000,*)
+  write(1000,'("total number of WF : ", I4)')nwantot
+  write(1000,*)
 endif
 do n=1,nwantot
   iatom=wan_info(1,n)
@@ -75,32 +79,32 @@ do n=1,nwantot
   itype=wan_info(4,n)
   nwannias(iatom)=nwannias(iatom)+1
   if (mpi_grid_root()) then     
-    write(100,'("  wf : ",I4)')n
-    write(100,'("    type : ",I4)')itype
-    write(100,'("    pure spinor orbital for projection : ")')
-    write(100,'("      atom : ",I4)')iatom
-    write(100,'("      l,m  : ",2I4)')lm2l(lm),lm-lm2l(lm)**2
-    write(100,'("      ispn : ",I4)')ispn
+    write(1000,'("  wf : ",I4)')n
+    write(1000,'("    type : ",I4)')itype
+    write(1000,'("    pure spinor orbital for projection : ")')
+    write(1000,'("      atom : ",I4)')iatom
+    write(1000,'("      l,m  : ",2I4)')lm2l(lm),lm-lm2l(lm)**2
+    write(1000,'("      ispn : ",I4)')ispn
     if (wannier_prjao.eq.0) then
-      write(100,'("        lo : ",I4)')wannier_prjlo(wan_info(7,n),wan_info(6,n))
+      write(1000,'("        lo : ",I4)')wannier_prjlo(wan_info(7,n),wan_info(6,n))
     endif
-    write(100,'("  interval : [",F8.4,",",F8.4,"]")')wann_eint(:,itype)
-    write(100,'("    potential : ",F8.4)')wann_v(itype)
-    write(100,*)
+    write(1000,'("  interval : [",F8.4,",",F8.4,"]")')wann_eint(:,itype)
+    write(1000,'("    potential : ",F8.4)')wann_v(itype)
+    write(1000,*)
   endif
 enddo
 if (mpi_grid_root()) then
   if (wannier_lc) then
-    write(100,*)
-    write(100,'("number of linear combinations of WF : ",I4)')nwanlc
+    write(1000,*)
+    write(1000,'("number of linear combinations of WF : ",I4)')nwanlc
     do n=1,nwanlc
-      write(100,'("  wf : ",I4)')n
+      write(1000,'("  wf : ",I4)')n
       do i=1,wanlc_norb(n)
-        write(100,'("    ",4I4)')(wanlc_iorb(j,i,n),j=1,4)
+        write(1000,'("    ",4I4)')(wanlc_iorb(j,i,n),j=1,4)
       enddo
     enddo  
   endif
-  close(100)
+  close(1000)
 endif
 if (wannier_lc) nwantot=nwanlc
 

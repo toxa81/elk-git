@@ -22,14 +22,18 @@ if (mpi_grid_root()) call timestamp(6,"[gwmain] done init")
 call init_q_mesh(8)
 call genvq
 call genvgq
+if (mpi_grid_root()) call timestamp(6,"[gwmain] done init_q_gq")
+
 ! create q-directories
-!if (mpi_grid_root()) then
-!  call system("mkdir -p q")
-!  do iq=1,nvq
-!    call getqdir(iq,vqm(:,iq),qnm)
-!    call system("mkdir -p "//trim(qnm))
-!  enddo
-!endif
+if (mpi_grid_root()) then
+  call system("mkdir -p q")
+  do iq=1,nvq
+    call getqdir(iq,vqm(:,iq),qnm)
+    call system("mkdir -p "//trim(qnm))
+  enddo
+endif
+if (mpi_grid_root()) call timestamp(6,"[gwmain] done q-directories")
+
 ! read the density and potentials from file
 call readstate
 ! generate radial functions
@@ -85,7 +89,7 @@ megq_include_bands=chi0_include_bands
 ! main loop over q-points
 do iqloc=1,nvqloc
   iq=mpi_grid_map(nvq,dim_q,loc=iqloc)
-  call genmegq(iq,.false.,.true.,.true.)
+  call genmegq(iq,.true.,.true.,.true.)
   call get_adjoint_megqblh(iq)
   call update_self_energy(iq)
   if (mpi_grid_root()) then
@@ -118,14 +122,16 @@ if (gw_mode.eq.0) then
        Eqp=dcmplx(evalsvnr(i,ik))+ &
            Zf*(gw_self_energy(1,i,ikloc) -dcmplx(vxcnk(i,ik)))
        write(154,'(I5,1X,6f16.6)') i,real(Eqp)*ha2ev, &
-        &evalsvnr(i,ik)*ha2ev,vxcnk(i,ik)*ha2ev, &
-        &real(gw_self_energy(1,i,ikloc))*ha2ev, &
-        &real(self_energy_x(i,ikloc))*ha2ev,real(Zf)
+                                    evalsvnr(i,ik)*ha2ev,vxcnk(i,ik)*ha2ev, &
+                                 real(gw_self_energy(1,i,ikloc))*ha2ev, &
+                                 real(self_energy_x(i,ikloc))*ha2ev,real(Zf)
+
       enddo !i
       write(154,*) "Done!"
       close(154)
     enddo !ikloc
   endif
+!!!!!!!!!!!!!!!!!!!!!
 else
   if (mpi_grid_root((/dim_q/))) then
     do ikloc=1,nkptnrloc

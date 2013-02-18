@@ -1,7 +1,12 @@
 tasks
-   0
-  801
-  
+  822
+
+exactrho
+ .true.
+   
+maxscl
+ 1
+
 nempty
   9
 
@@ -72,4 +77,3 @@ megqwan_dist
  
 
   
-   

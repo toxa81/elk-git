@@ -20,7 +20,7 @@ F90_OPTS = -O3 -Wall -cpp $(CPP_OPTS) -I/Users/anton/local/include
 #F90_OPTS = -O0 -Wall -g -cpp -fbounds-check -fdump-core -fbacktrace -ffpe-trap=invalid,zero -fopenmp $(CPP_OPTS) -I/Users/anton/local/include
 
 # C++ compiler options
-CXX_OPTS = -O3 -Wall $(CPP_OPTS)
+CXX_OPTS = -O3 -Wall -fopenmp $(CPP_OPTS)
 
 # Fortran linker options
 F90_LINK_OPTS = -fopenmp
@@ -46,11 +46,11 @@ XC_LIB = $(HOME)/local/lib/libxc.a
 # === compile with Madness API ===
 #CPP_OPTS := $(CPP_OPTS) -D_MAD_
 #MADNESS_INC = -I$(HOME)/local/opt/madness/include
-#MADNESS_LIB = -L$(HOME)/local/opt/madness/lib/ -lMADmra -lMADlinalg -lMADtensor -lMADmisc -lMADmuparser -lMADtinyxml -lMADworld -lmpi_cxx -lstdc++
+#MADNESS_LIB = ./addons/madness/libmad.a -L$(HOME)/local/opt/madness/lib/ -lMADmra -lMADlinalg -lMADtensor -lMADmisc -lMADmuparser -lMADtinyxml -lMADworld -lmpi_cxx -lstdc++
 
 # === compile with libapw support ===
-CPP_OPTS := $(CPP_OPTS) -D_LIBAPW_ -DNDEBUG 
-LIBAPW = ./addons/cpp/v2/libapw.a -lstdc++
+#CPP_OPTS := $(CPP_OPTS) -D_LIBAPW_ -DNDEBUG 
+#LIBAPW = ./addons/cpp/libapw.a -lstdc++
 
 # === collect all libraries under one name ===
 LIBS = $(LAPACK_LIB) $(HDF5_LIB) $(XC_LIB) $(NFFT_LIB) $(MADNESS_LIB) $(LIBAPW)

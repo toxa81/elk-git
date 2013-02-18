@@ -31,7 +31,7 @@ real(8) epslat
 ! maximum allowed species
 integer, parameter :: maxspecies=8
 ! maximum allowed atoms per species
-integer, parameter :: maxatoms=200
+integer, parameter :: maxatoms=2000
 ! number of species
 integer nspecies
 ! number of atoms for each species
@@ -156,8 +156,6 @@ logical spinorb
 integer fixspin
 ! dimension of magnetisation and magnetic vector fields (1 or 3)
 integer ndmag
-! ncmag is .true. if the magnetisation is non-collinear, i.e. when ndmag = 3
-logical ncmag
 ! fixed total spin magnetic moment
 real(8) momfix(3)
 ! fixed spin moment global effective field in Cartesian coordinates

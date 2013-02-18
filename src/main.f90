@@ -110,8 +110,10 @@ do itask=1,ntasks
     call sic_gndstate 
   case(701)
     call sic_main
-  case(702)
-    call sic_test_vme
+  !case(702)
+  !  call sic_test_vme
+  !case(703)
+  !  call sic_test_localize
   case(800)
     call response
   case(801)
@@ -146,6 +148,10 @@ do itask=1,ntasks
 !  case(890)
 !    call test_madness
 !#endif
+  case(2000)
+    call test_sirius
+  case(2001)
+    call test_sirius_band
   case default
     write(*,*)
     write(*,'("Error(main): task not defined : ",I8)') task

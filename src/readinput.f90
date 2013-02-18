@@ -1033,6 +1033,11 @@ case('wannier_prjlo')
   do i=1,wann_natom
     read(50,*,err=20) (wannier_prjlo(j,i),j=1,wann_norb(wann_iprj(2,i)))
   enddo
+case('wan_complex')
+  allocate(wan_complex(32,wann_natom))
+  do i=1,wann_natom
+    read(50,*,err=20) (wan_complex(j,i),j=1,wann_norb(wann_iprj(2,i)))
+  enddo
 case ('wannier_soft_eint')
   wannier_soft_eint=.true.
   allocate(wannier_soft_eint_e1(wann_ntype))

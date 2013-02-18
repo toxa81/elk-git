@@ -104,9 +104,10 @@ do ikloc=1,nkptnrloc
     n=bamegqblh(2,i,ikloc)
 
 ! G0W0
-    if (gw_mode.eq.0) then
+    if (gw_mode==0) then
       lr_w(1)=dcmplx(evalsvnr(n,ik),lr_eta)
       lr_w(2)=dcmplx(evalsvnr(n,ik)+del_e,lr_eta)
+      write(156,*) "lr_w:",lr_w(1),lr_w(2)
     endif
 
     do iw=1,lr_nw

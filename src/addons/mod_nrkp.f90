@@ -122,6 +122,7 @@ integer ikloc,ik,n,m,j
 complex(8) zt1
 real(8) w2
 complex(8), allocatable :: wanc(:,:)
+character*100 fname
 !
 if (ldisentangle) then
   write(*,'("Error(wancnr_transform): disentanglement is not implemented here")')
@@ -135,6 +136,7 @@ wann_unkmt=zzero
 wann_unkit=zzero
 allocate(wanc(nwantot,nstsv))
 do ikloc=1,nkptnrloc
+  ik=mpi_grid_map(nkptnr,dim_k,loc=ikloc) 
   do n=1,nwantot
     do m=1,nwantot
       zt1=zzero
@@ -143,12 +145,13 @@ do ikloc=1,nkptnrloc
       enddo
       if (n.eq.m) zt1=zt1-zone
       if (abs(zt1).gt.1d-10) then
-        write(*,'("Error(wancnr_transform): umtrx in not hermitian")')
+        write(*,'("Error(wancnr_transform): umtrx in not unitary")')
+        write(fname,'("umtrx_k",I4.4,".txt")')ik
+        call wrmtrx(trim(adjustl(fname)),nwantot,nwantot,umtrx(1,1,ikloc),nwantot)
         call pstop
       endif
     enddo
   enddo  
-  ik=mpi_grid_map(nkptnr,dim_k,loc=ikloc) 
   call wan_gencsv(lmmaxapw,vkcnr(1,ik),evalsvnr(1,ik),&
         &wfsvmtnrloc(1,1,1,1,1,ikloc),wanncnrloc(1,1,ikloc)) 
   wanc=zzero
@@ -158,6 +161,20 @@ do ikloc=1,nkptnrloc
     enddo
   enddo
   wanncnrloc(:,:,ikloc)=wanc(:,:)
+  ! check orthogonality
+  do n=1,nwantot
+    do m=1,nwantot
+      zt1=zzero
+      do j=1,nstsv
+        zt1=zt1+dconjg(wanc(n,j))*wanc(m,j)
+      enddo
+      if (n.eq.m) zt1=zt1-zone
+      if (abs(zt1).gt.1d-8) then
+        write(*,*)"warning: WFs are not orthogonal for k-point ",ik,"; n,m,deviation=",n,m,abs(zt1)
+      endif
+    enddo
+  enddo
+  ! new WFs
   do n=1,nwantot
     do j=1,nstsv
       wann_unkmt(:,:,:,:,n,ikloc)=wann_unkmt(:,:,:,:,n,ikloc) + &
@@ -204,7 +221,7 @@ complex(8), allocatable :: evec(:,:)
 !
 !call gen_k_sym
 ! get energies of states in reduced part of BZ
-call timer_start(3,reset=.true.)
+call timer_start(t_read_eval,reset=.true.)
 if (wproc.and.fout.gt.0) then
   write(fout,*)
   write(fout,'("Reading energies of states")')
@@ -225,9 +242,9 @@ do ikloc=1,nkptnrloc
   call findkpt(vklnr(1,ik),isym,ik1) 
   evalsvnr(:,ik)=evalsv(:,ik1)
 enddo
-call timer_stop(3)
+call timer_stop(t_read_eval)
 if (wproc.and.fout.gt.0) then
-  write(fout,'("Done in ",F8.2," seconds")')timer_get_value(3)
+  write(fout,'("Done in ",F8.2," seconds")')timer_get_value(t_read_eval)
   call timestamp(fout)
   if (fout.ne.6) call flushifc(fout)
 endif
@@ -290,7 +307,7 @@ if (wannier) then
   if (allocated(wann_unkit)) deallocate(wann_unkit)
   allocate(wann_unkit(ngkmax,nspinor,nwantot,nkptnrloc))
 endif
-call timer_start(1,reset=.true.)
+call timer_start(t_read_evec,reset=.true.)
 ! read eigen-vectors
 if (mpi_grid_side(dims=(/dim_k/))) then
   do ikloc=1,nkptnrloc
@@ -314,15 +331,15 @@ else
   call mpi_grid_bcast(evecfdnrloc(1,1,1),nmatmax*nspinor*nstsv*nkptnrloc,&
     &dims=ortdims((/dim_k/)))
 endif
-call timer_stop(1)
+call timer_stop(t_read_evec)
 if (wproc.and.fout.gt.0) then
-  write(fout,'("Done in ",F8.2," seconds")')timer_get_value(1)
+  write(fout,'("Done in ",F8.2," seconds")')timer_get_value(t_read_evec)
   if (fout.ne.6) call flushifc(fout)
 endif
 ! generate wave functions from eigen vectors
 wfsvmtnrloc=zzero
 wfsvitnrloc=zzero
-call timer_start(1,reset=.true.)
+call timer_start(t_genwf,reset=.true.)
 if (wproc.and.fout.gt.0) then
   write(fout,*)
   write(fout,'("Generating wave-functions")')
@@ -370,9 +387,9 @@ do ikloc=1,nkptnrloc
   endif
 enddo !ikloc
 deallocate(apwalm,evec)
-call timer_stop(1)
+call timer_stop(t_genwf)
 if (wproc.and.fout.gt.0) then
-  write(fout,'("Done in ",F8.2," seconds")')timer_get_value(1)
+  write(fout,'("Done in ",F8.2," seconds")')timer_get_value(t_genwf)
   call timestamp(fout)
   if (fout.ne.6) call flushifc(fout)
 endif

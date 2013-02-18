@@ -38,35 +38,40 @@ def r3minv(a, b):
 #
 class Orbital:
 
-  def __init__(self,coefs):
-    self.pos=[]
-    self.tri=[]
-    self.coefs=coefs
+  def __init__(self, l, coefs):
+    self.pos = []
+    self.tri = []
+    self.coefs = coefs
+    self.l = l
     self.make()
   
   # real spherical harmonics 
-  def Rlm(self,l,m,theta,phi):
+  def Rlm(self, l, m, theta, phi):
+    if l == 1 and m == -1: return -math.sqrt(3 / (4 * math.pi)) * math.sin(phi) * math.sin(theta)
+    if l == 1 and m == 0: return math.sqrt(3 / (4 * math.pi)) * math.cos(theta)
+    if l == 1 and m == 1: return -math.sqrt(3 / (4 * math.pi)) * math.cos(phi) * math.sin(theta)
+    
     if l==2 and m==-2: return -math.sqrt(15.0/(16*math.pi))*math.sin(2*phi)*math.sin(theta)**2
     if l==2 and m==-1: return -math.sqrt(15.0/(16*math.pi))*math.sin(phi)*math.sin(2*theta)
     if l==2 and m==0: return math.sqrt(5/(64*math.pi))*(1+3*math.cos(2*theta))
     if l==2 and m==1: return -math.sqrt(15.0/(16*math.pi))*math.cos(phi)*math.sin(2*theta)
     if l==2 and m==2: return math.sqrt(15.0/(16*math.pi))*math.cos(2*phi)*math.sin(theta)**2
   
-  def val(self,theta,phi):
-    v=0
-    for m in range(5): 
-      v+=self.coefs[m]*self.Rlm(2,m-2,theta,phi)
-    return v
+  def val(self, theta, phi):
+    v = 0
+    for m in range(2 * self.l + 1): 
+      v += self.coefs[m] * self.Rlm(self.l, m - self.l, theta, phi)
+    return math.fabs(v)
     
   def make(self):
     raw_pos=[]
     raw_con=[]
-    n=30
+    n=50
     for t in range(n):
       theta=math.pi*t/(n-1)
       for p in range(n):
         phi=2*math.pi*p/(n-1)
-        v=5.5*self.val(theta,phi)
+        v=5*self.val(theta,phi)
         x=v*math.sin(theta)*math.cos(phi)
         y=v*math.sin(theta)*math.sin(phi)
         z=v*math.cos(theta)
@@ -278,23 +283,24 @@ class Cell:
         self.bondList.append([label1, label2, length, extend])
         return
 
-    def atomOrbital(self, ias, fname, iorb):
+    def atomOrbital(self, ias, l, fname, iorb):
         fin = open(fname, "r")
         f1 = []
-        for i in range(5):
+        for i in range(2 * l + 1):
             s1 = fin.readline().strip(" \n").split()
             if i == (iorb - 1):
-                for j in range(5): 
+                for j in range(2 * l + 1): 
                     f1.append(float(s1[j]))
-        self.geometry.atomList[ias].orbital = Orbital(f1)
+        self.geometry.atomList[ias - 1].orbital = Orbital(l, f1)
         return
       
     def write(self):
-      self.fillBox()
-      self.makeBonds()
-      self.writeAtoms()
-      self.writeBonds()
-      #self.writeOrbitals()
+        self.fillBox()
+        self.makeBonds()
+        self.writeAtoms()
+        self.writeBonds()
+        self.writeOrbitals()
+        return
       
     
 #    def inBox(self, p, box):
@@ -473,44 +479,43 @@ class Cell:
         return
 
     def writeOrbitals(self):
-      print " "
-      print "writing ORBITALS.dx"
-      fout=open("ORBITALS.dx","w+")
-      iorb=0
-      for iat in range(len(self.atomList)):
-        print self.atomList[iat].orbital
-        if self.atomList[iat].orbital != 0:
-          iorb+=1
-          r0=self.atomList[iat].posc
-          fout.write("object %i class array type float rank 1 shape 3 items %i data follows\n"%\
-            ((iorb-1)*2+1,len(self.atomList[iat].orbital.pos)))
-          for i in range(len(self.atomList[iat].orbital.pos)):
-            r=[0,0,0]
-            for x in range(3):
-              r[x]=r0[x]+self.atomList[iat].orbital.pos[i][x]
-            fout.write("%f %f %f\n"%(r[0],r[1],r[2]))
-          fout.write("#\n")
-          fout.write("object %i class array type int rank 1 shape 3 items %i data follows\n"%\
-            ((iorb-1)*2+2,len(self.atomList[iat].orbital.tri)))  
-          for i in range(len(self.atomList[iat].orbital.tri)):
-            fout.write("%i %i %i\n"%(self.atomList[iat].orbital.tri[i][0],\
-                                     self.atomList[iat].orbital.tri[i][1],\
-                                     self.atomList[iat].orbital.tri[i][2]))
-          fout.write("attribute \"ref\" string \"positions\"\n")
-          fout.write("attribute \"element type\" string \"triangles\"\n")
-          fout.write("attribute \"dep\" string \"connections\"\n")
-          fout.write("#\n")  
-          fout.write("object \"orbital%i\" class field\n"%iorb)
-          fout.write("component \"positions\" value %i\n"%((iorb-1)*2+1))
-          fout.write("component \"connections\" value %i\n"%((iorb-1)*2+2))
-          fout.write("#\n")
-      norb=iorb
-      fout.write("object \"orbital\" class group\n")
-      for iorb in range(norb):
-        fout.write("  member %i value \"orbital%i\"\n"%(iorb,iorb+1))
-      fout.write("end\n")
-      fout.close()
-      
+        print " "
+        print "writing ORBITALS.dx"
+        fout = open("ORBITALS.dx","w+")
+        iorb = 0
+        for i in range(len(self.atoms)):
+            ias = self.atoms[i][0]
+            if self.geometry.atomList[ias].orbital != 0:
+                iorb += 1
+                fout.write("object %i class array type float rank 1 shape 3 items %i data follows\n"%\
+                    ((iorb-1) * 2 + 1, len(self.geometry.atomList[ias].orbital.pos)))
+                for j in range(len(self.geometry.atomList[ias].orbital.pos)):
+                    r = [0,0,0]
+                    for x in range(3):
+                        r[x] = self.atoms[i][1][x] + self.geometry.atomList[ias].orbital.pos[j][x]
+                    fout.write("%f %f %f\n"%(r[0], r[1], r[2]))
+                fout.write("#\n")
+                fout.write("object %i class array type int rank 1 shape 3 items %i data follows\n"%\
+                    ((iorb - 1) * 2 + 2, len(self.geometry.atomList[ias].orbital.tri)))  
+                for j in range(len(self.geometry.atomList[ias].orbital.tri)):
+                    fout.write("%i %i %i\n"%(self.geometry.atomList[ias].orbital.tri[j][0],\
+                                             self.geometry.atomList[ias].orbital.tri[j][1],\
+                                             self.geometry.atomList[ias].orbital.tri[j][2]))
+                fout.write("attribute \"ref\" string \"positions\"\n")
+                fout.write("attribute \"element type\" string \"triangles\"\n")
+                fout.write("attribute \"dep\" string \"connections\"\n")
+                fout.write("#\n")  
+                fout.write("object \"orbital%i\" class field\n"%iorb)
+                fout.write("component \"positions\" value %i\n"%((iorb - 1) * 2 + 1))
+                fout.write("component \"connections\" value %i\n"%((iorb - 1) * 2 + 2))
+                fout.write("#\n")
+        norb = iorb
+        fout.write("object \"orbital\" class group\n")
+        for iorb in range(norb):
+            fout.write("  member %i value \"orbital%i\"\n"%(iorb, iorb + 1))
+        fout.write("end\n")
+        fout.close()
+        return
 
 #
 # 
@@ -527,7 +532,7 @@ geometry = Geometry()
 # 3D box (center point + 3 non-collinear vectors) 
 #  example: 
 #   box=[[0,0,0],[10,0,0],[0,10,0],[0,0,10]] 
-box = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]] #geometry.avec[0],geometry.avec[1],geometry.avec[2]]
+box = [[0, 0, 0], [20, 0, 0], [0, 20, 0], [0, 0, 1]] #geometry.avec[0],geometry.avec[1],geometry.avec[2]]
 
 #
 # cell with user-defined shape
@@ -563,7 +568,12 @@ cell.bond("Cu", "O", 5, True)
 #  defines angular part of the site-centered orbital i for atom j; 
 #  the orbital coefficients are taken from file file_name
 #  example: 
-#cell.atomOrbital(4, "Cu1_mtrx.txt", 1)
+cell.atomOrbital(5, 2, "Cu_5_mtrx.txt", 4)
+cell.atomOrbital(6, 2, "Cu_6_mtrx.txt", 4)
+cell.atomOrbital(7, 1, "O_7_mtrx.txt", 1)
+cell.atomOrbital(8, 1, "O_8_mtrx.txt", 1)
+cell.atomOrbital(9, 1, "O_9_mtrx.txt", 1)
+cell.atomOrbital(10, 1, "O_10_mtrx.txt", 1)
 
 # 
 # write to .dx files

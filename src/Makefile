@@ -39,8 +39,7 @@ SRC_modules = ./addons/mod_mpi_grid.f90 \
               
 OBJ_modules = $(SRC_modules:.f90=.o)
 SRC = $(shell find . -name \*.f90)
-OBJ_extras = addons/nfft/nfft_intrf.o 
-OBJ = $(SRC:.f90=.o) $(OBJ_extras) 
+OBJ = $(SRC:.f90=.o)
 
 EXE = elk
 
@@ -48,6 +47,9 @@ EXE = elk
 # Suffix rules
 #-------------------------------------------------------------------------------
 .SUFFIXES: .f90
+
+# prevent invocation of m2c
+%.o: %.mod
 
 .f90.o:
 	$(F90) $(F90_OPTS) -c -o $(*D)/$(*F).o $<
@@ -67,7 +69,6 @@ gensrc:
 	python ../ftemplate.py <./addons/mod_hdf5.tpl >./addons/mod_hdf5.f90
 
 extras:
-	cd addons/nfft; $(MAKE)
 ifneq (,$(findstring D_MAD_,$(CPP_OPTS)))
 	cd addons/madness; $(MAKE)
 endif
@@ -81,8 +82,12 @@ elk:	$(OBJ_modules) $(OBJ)
 lib:
 	ar r libelk.a $(OBJ)
 
+modclean:
+	rm $(OBJ_modules)
+	
 clean:
 	find . -name \*.o -exec rm {} \;
+	find . -name \*.mod -exec rm {} \;
 	rm -f *.mod *~ fort.* ifc* *.gcno gmon.out *.aux *.dvi *.log \
         elk.pdf *.tex *.toc elk.lst elk.out $(EXE)
 

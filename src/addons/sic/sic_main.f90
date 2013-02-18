@@ -65,6 +65,7 @@ if (wproc) then
   write(151,'("maximum angular momentum               : ",I6)')lmaxwan
   write(151,'("cutoff radius for SIC matrix elements  : ",F12.6)')sic_me_cutoff
   write(151,'("number of Wannier transitions          : ",I6)')sic_wantran%nwt
+  write(151,'("number of on-site Wannier transitions  : ",I6)')sic_wantran%nwt0
   !write(151,*)
   !write(151,'("LDA energies of Wannier functions")')
   !do j=1,sic_wantran%nwan
@@ -82,7 +83,7 @@ do iter=1,sic_niter_umtrx
   if (wproc) then
     write(151,*)
     write(151,'(80("="))')
-    write(151,'("SIC minimization")')
+    write(151,'("SIC localization step : ",I4)')iter
     write(151,'(80("="))')
     write(151,'("energies of Wannier functions")')
     do j=1,sic_wantran%nwan
@@ -91,9 +92,9 @@ do iter=1,sic_niter_umtrx
     enddo
   endif
 ! generate Wannier functions and corresponding potential
-  call sic_wan(151)
+  call sic_wan_pot(151)
 ! matrix elements
-  call sic_genvme(151)
+  call sic_genvme(151,iter)
 enddo
 ! write to HDF5 file
 call sic_write_data
