@@ -19,13 +19,14 @@ use modmain
 !BOC
 implicit none
 ! local variables
-logical fnd
-integer is,ia,ja,ias,jas,ic,ir
-integer l,ilo,io,jo
+integer is,ia,ias,jas,ic,ir
+integer l,ilo,io
 real(8) t1
 real(8), allocatable :: vr(:)
-allocate(vr(spnrmax))
 ! loop over non-equivalent atoms (classes)
+!$OMP PARALLEL DEFAULT(SHARED) PRIVATE(vr)
+allocate(vr(spnrmax))
+!$OMP DO DEFAULT(SHARED) PRIVATE(ias,ia,is,t1,l,io,ilo,jas)
 do ic=1,natmcls
   ias=ic2ias(ic)
   ia=ias2ia(ias)
@@ -39,7 +40,7 @@ do ic=1,natmcls
   do l=0,lmaxapw
     do io=1,apword(l,is)
       if (apwve(io,l,is)) then
-        call findband2(solsc,spzn(is),apwpqn(l,is),l,spnr(is),spr(1,is),vr,apwe(io,l,ias))
+        call findband3(solsc,spzn(is),apwpqn(l,is),l,nrmt(is),spnr(is),spr(1,is),vr,apwe(io,l,ias),nprad)
       endif
     enddo
   enddo
@@ -47,7 +48,7 @@ do ic=1,natmcls
     do io=1,lorbord(ilo,is)
       if (lorbve(io,ilo,is)) then
         l=lorbl(ilo,is)
-        call findband2(solsc,spzn(is),lopqn(ilo,is),l,spnr(is),spr(1,is),vr,lorbe(io,ilo,ias))
+        call findband3(solsc,spzn(is),lopqn(ilo,is),l,nrmt(is),spnr(is),spr(1,is),vr,lorbe(io,ilo,ias),nprad)
       endif
     enddo
   enddo
@@ -66,30 +67,162 @@ do ic=1,natmcls
     endif
   enddo
 enddo
+!$OMP END DO
 deallocate(vr)
+!$OMP END PARALLEL
 return
 end subroutine
 !EOC
 
-
-subroutine findband2(sol,zn,n,l,nx,x,v,enu)
+subroutine findband3(sol,zn,n,l,nrmt,nr,r,v,enu,np)
 implicit none
 real(8), intent(in) :: sol
 real(8), intent(in) :: zn
 integer, intent(in) :: n
 integer, intent(in) :: l
-integer, intent(in) :: nx
-real(8), intent(in) :: x(nx)
-real(8), intent(in) :: v(nx)
+integer, intent(in) :: nrmt
+integer, intent(in) :: nr
+real(8), intent(in) :: r(nr)
+real(8), intent(in) :: v(nr)
 real(8), intent(out) :: enu
+integer, intent(in) :: np
 !
-real(8), allocatable :: u(:)
+real(8) p0(nrmt),p1(nrmt),q0(nrmt),q1(nrmt),de,p0p,p1p,etop,ebot
+integer nn,i
 !
-allocate(u(nx))
-call srrse_bound_state(sol,zn,n,l,nx,x,v,enu,u)
-deallocate(u)
+call srrse_bound_state(sol,zn,n,l,nr,r,v,enu,p0)
+!call findband3_bound_state(sol,zn,n,l,nr,r,v,enu,np)
+
+! find the top of the band
+de=0.001d0
+do i=1,1000
+  call rschroddme(sol,0,l,0,enu,np,nrmt,r,v,nn,p0,p1,q0,q1)
+  if (i.gt.1) then
+    if (p0(nrmt)*p0p.lt.0.d0) then
+      if (abs(de).lt.1d-10) goto 10
+      de=-0.5d0*de
+    else
+      de=de*1.25d0
+    endif
+  endif
+  p0p=p0(nrmt)
+  enu=enu+de
+enddo
+write(*,'("Error(findband3): top of linearizarion energy is not found")')
+stop
+10 continue
+etop=enu
+de=-0.001d0
+do i=1,1000
+  call rschroddme(sol,0,l,0,enu,np,nrmt,r,v,nn,p0,p1,q0,q1)
+  if (i.gt.1) then
+    if (p1(nrmt)*p1p.lt.0.d0) then
+      if (abs(de).lt.1d-10) goto 20
+      de=-0.5d0*de
+    else
+      de=de*1.25d0
+    endif
+  endif
+  p1p=p1(nrmt)
+  enu=enu+de
+enddo
+write(*,'("Error(findband3): bottom linearizarion energy is not found")')
+stop
+20 continue
+ebot=enu
+enu=(etop+ebot)/2.d0
+write(*,*)n,l,enu
 return
+
 end subroutine
+
+
+
+
+!!* subroutine findband3_bound_state(sol,zn,n,l,nx,x,v,enu,np)
+!!* implicit none
+!!* real(8), intent(in) :: sol
+!!* real(8), intent(in) :: zn
+!!* integer, intent(in) :: n
+!!* integer, intent(in) :: l
+!!* integer, intent(in) :: nx
+!!* real(8), intent(in) :: x(nx)
+!!* real(8), intent(in) :: v(nx)
+!!* real(8), intent(out) :: enu
+!!* integer, intent(in) :: np
+!!* !
+!!* integer nn,s,sp,iter,j1,i,j
+!!* real(8) p0(nx),p1(nx),q0(nx),q1(nx),denu,t1
+!!* !
+!!* s=1
+!!* denu=0.1d0
+!!* do iter=1,1000
+!!*   call rschroddme(sol,0,l,0,enu,np,nx,x,v,nn,p0,p1,q0,q1)
+!!*   sp=s
+!!*   if ((nn.gt.(n-l-1))) then
+!!*     s=-1
+!!*   else
+!!*     s=1
+!!*   endif
+!!*   denu=s*abs(denu)
+!!*   if (s.ne.sp) then
+!!*     denu=denu*0.5d0
+!!*   else
+!!*     denu=denu*1.25d0
+!!*   endif
+!!*   if (abs(denu).lt.1d-10) goto 10
+!!*   enu=enu+denu
+!!* enddo
+!!* write(*,'("Warning(findband3_bound_state): energy is not found")')
+!!* stop
+!!* 10 continue
+!!* ! find the turning point
+!!* j1=nx
+!!* do i=1,nx
+!!*   if (v(i).gt.enu) then
+!!*     j1=i
+!!*     exit
+!!*   endif
+!!* enddo
+!!* ! find the minimum value of the function starting from the turning point
+!!* t1=1d100
+!!* i=0
+!!* do j=j1,nx
+!!*   if (abs(p0(j)).lt.t1) then
+!!*     t1=abs(p0(j))
+!!*     i=j
+!!*   endif
+!!* enddo
+!!* if (i.ne.0) p0(i:)=0.d0
+!!* nn=0
+!!* do i=1,nx-1
+!!*   if (p0(i)*p0(i+1).lt.0.d0) nn=nn+1
+!!* enddo
+!!* if (nn.ne.(n-l-1)) then
+!!*   write(*,'("Warning(srrse_bound_state): wrong number of nodes")')
+!!*   write(*,'("  n : ",I1,"  l : ",I1,"  nn : ",I1)')n,l,nn
+!!* endif
+!!* end subroutine
+
+
+!!* subroutine findband2(sol,zn,n,l,nx,x,v,enu)
+!!* implicit none
+!!* real(8), intent(in) :: sol
+!!* real(8), intent(in) :: zn
+!!* integer, intent(in) :: n
+!!* integer, intent(in) :: l
+!!* integer, intent(in) :: nx
+!!* real(8), intent(in) :: x(nx)
+!!* real(8), intent(in) :: v(nx)
+!!* real(8), intent(out) :: enu
+!!* !
+!!* real(8), allocatable :: u(:)
+!!* !
+!!* allocate(u(nx))
+!!* call srrse_bound_state(sol,zn,n,l,nx,x,v,enu,u)
+!!* deallocate(u)
+!!* return
+!!* end subroutine
 
 subroutine srrse_bound_state(sol,zn,n,l,nx,x,v,enu,p)
 use mod_util
@@ -127,7 +260,7 @@ denu=0.01d0
 !
 s=1
 do iter=1,1000
-  call srrse_integrate(.false.,.true.,sol,zn,l,nx,x,v,ve,cve,mp,cmp,enu,p,q,q1,nn)
+  call srrse_integrate(.true.,.true.,sol,zn,l,nx,x,v,ve,cve,mp,cmp,enu,p,q,q1,nn)
   sp=s
   if ((nn.gt.(n-l-1))) then
     s=-1
