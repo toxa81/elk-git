@@ -197,6 +197,8 @@ integer, parameter :: t_lin_en=42
 integer, parameter :: t_read_eval=50 
 integer, parameter :: t_read_evec=51 
 integer, parameter :: t_genwf=52 
+integer, parameter :: t_genwan=53 
+integer, parameter :: t_genpmat=54 
 
 
 

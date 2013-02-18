@@ -340,6 +340,7 @@ endif
 wfsvmtnrloc=zzero
 wfsvitnrloc=zzero
 call timer_start(t_genwf,reset=.true.)
+call timer_reset(t_genpmat)
 if (wproc.and.fout.gt.0) then
   write(fout,*)
   write(fout,'("Generating wave-functions")')
@@ -382,20 +383,23 @@ do ikloc=1,nkptnrloc
     endif
   endif
   if (lpmat) then
+    call timer_start(t_genpmat)
     call genpmatsv(ngknr(ikloc),igkignr(1,ikloc),vgkcnr(1,1,ikloc),&
       &wfsvmtnrloc(1,1,1,1,1,ikloc),wfsvitnrloc(1,1,1,ikloc),pmatnrloc(1,1,1,ikloc))
+    call timer_stop(t_genpmat)
   endif
 enddo !ikloc
 deallocate(apwalm,evec)
 call timer_stop(t_genwf)
 if (wproc.and.fout.gt.0) then
   write(fout,'("Done in ",F8.2," seconds")')timer_get_value(t_genwf)
+  write(fout,'("genpmat ",F8.2," seconds")')timer_get_value(t_genpmat)
   call timestamp(fout)
   if (fout.ne.6) call flushifc(fout)
 endif
 ! generate Bloch sums of Wannier functions
 if (wannier) then
-  call timer_start(1,reset=.true.)
+  call timer_start(t_genwan,reset=.true.)
   if (allocated(wann_unkmt)) deallocate(wann_unkmt)
   allocate(wann_unkmt(lmmaxapw,nufrmax,natmtot,nspinor,nwantot,nkptnrloc))
   if (allocated(wann_unkit)) deallocate(wann_unkit)
@@ -417,7 +421,7 @@ if (wannier) then
       enddo
     enddo
   enddo !ikloc
-  call timer_stop(1)
+  call timer_stop(t_genwan)
 endif !wannier
 ! after optinal band disentanglement we can finally synchronize all eigen-values
 !   and compute band occupation numbers 
@@ -448,7 +452,7 @@ if (mpi_grid_root()) then
   close(180)
 endif
 if (wannier) then
-  call timer_start(1)
+  call timer_start(t_genwan)
 ! calculate Wannier function occupancies 
   wann_occ=0.d0
   wann_ene=0.d0
@@ -471,7 +475,7 @@ if (wannier) then
         &wann_occ(n),wann_ene(n)
     enddo
   endif
-  call timer_stop(1)
+  call timer_stop(t_genwan)
   if (wproc.and.fout.gt.0) then
     write(fout,'("  Dielectric Wannier functions : ",L1)')wann_diel()
     write(fout,*)

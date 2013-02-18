@@ -13,7 +13,7 @@ complex(8), intent(out) :: pmat(3,nstsv,nstsv)
 integer ispn,is,ia,ist,jst,n
 integer i,l,igp,ifg,ir,ias,lm,ic,io,wfsize,wfsizemax,ig
 complex(8) zt1,zt2,zsum
-integer idx(3)
+integer idx(3),istloc,nstsvloc
 ! allocatable arrays
 complex(8), allocatable :: wfmt(:,:)
 complex(8), allocatable :: gwfmt(:,:,:)
@@ -32,6 +32,7 @@ allocate(wftmp1(wfsizemax,nstsv))
 allocate(wftmp2(wfsizemax,3))
 allocate(zv1(nstsv,3))
 allocate(zf(nrmtmax))
+pmat=zzero
 ! collect <bra| states
 wftmp1=zzero
 i=0
@@ -54,7 +55,9 @@ do ispn=1,nspinor
 enddo !ispn
 wfsize=i
 ! loop over |ket> states 
-do ist=1,nstsv
+nstsvloc=mpi_grid_map(nstsv,2)
+do istloc=1,nstsvloc
+  ist=mpi_grid_map(nstsv,2,loc=istloc)
   wftmp2=zzero
 ! muffin-tin part of \grad |ket>
   idx=0
@@ -117,6 +120,7 @@ do ist=1,nstsv
     enddo
   enddo
 end do
+call mpi_grid_reduce(pmat(1,1,1),3*nstsv*nstsv,dims=(/2/),all=.true.)
 deallocate(wfmt,gwfmt,wftmp1,wftmp2,zv1,zf)
 deallocate(gwfir)
 ! multiply by -i and set lower triangular part

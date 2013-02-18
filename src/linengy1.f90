@@ -91,7 +91,7 @@ real(8) de,p0p,p1p,etop,ebot
 real(8), allocatable :: p0(:),p1(:),q0(:),q1(:)
 integer nn,i
 !
-allocate(p0(nrmt),p1(nrmt),q0(nrmt),q1(nrmt))
+allocate(p0(nr),p1(nrmt),q0(nrmt),q1(nrmt))
 call srrse_bound_state(sol,zn,n,l,nr,r,v,enu,p0)
 !call findband3_bound_state(sol,zn,n,l,nr,r,v,enu,np)
 
@@ -133,7 +133,6 @@ stop
 20 continue
 ebot=enu
 enu=(etop+ebot)/2.d0
-write(*,*)n,l,enu
 deallocate(p0,p1,q0,q1)
 return
 end subroutine
