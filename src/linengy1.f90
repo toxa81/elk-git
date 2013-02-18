@@ -24,9 +24,9 @@ integer l,ilo,io
 real(8) t1
 real(8), allocatable :: vr(:)
 ! loop over non-equivalent atoms (classes)
-!$OMP PARALLEL DEFAULT(SHARED) PRIVATE(vr)
+!$OMP PARALLEL DEFAULT(SHARED) PRIVATE(vr,ir,ias,ia,is,t1,l,io,ilo,jas)
 allocate(vr(spnrmax))
-!$OMP DO DEFAULT(SHARED) PRIVATE(ias,ia,is,t1,l,io,ilo,jas)
+!$OMP DO 
 do ic=1,natmcls
   ias=ic2ias(ic)
   ia=ias2ia(ias)
@@ -87,9 +87,11 @@ real(8), intent(in) :: v(nr)
 real(8), intent(out) :: enu
 integer, intent(in) :: np
 !
-real(8) p0(nrmt),p1(nrmt),q0(nrmt),q1(nrmt),de,p0p,p1p,etop,ebot
+real(8) de,p0p,p1p,etop,ebot
+real(8), allocatable :: p0(:),p1(:),q0(:),q1(:)
 integer nn,i
 !
+allocate(p0(nrmt),p1(nrmt),q0(nrmt),q1(nrmt))
 call srrse_bound_state(sol,zn,n,l,nr,r,v,enu,p0)
 !call findband3_bound_state(sol,zn,n,l,nr,r,v,enu,np)
 
@@ -132,8 +134,8 @@ stop
 ebot=enu
 enu=(etop+ebot)/2.d0
 write(*,*)n,l,enu
+deallocate(p0,p1,q0,q1)
 return
-
 end subroutine
 
 

@@ -7,9 +7,9 @@ call linengy1
 call timer_stop(t_lin_en)
 ! generate the APW radial functions
 call timer_start(t_apw_rad)
-call genapwfr1
+call genapwfr
 ! generate the local-orbital radial functions
-call genlofr1
+call genlofr
 call timer_stop(t_apw_rad)
 ! collect radial-muffint tin functions
 call getufr
