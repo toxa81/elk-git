@@ -6,7 +6,6 @@
 subroutine writeengy(fnum)
 use modmain
 use modldapu
-use mod_sic
 implicit none
 ! arguments
 integer, intent(in) :: fnum
@@ -37,11 +36,6 @@ if (stype.eq.3) then
   write(fnum,'(" electron entropic",T30,": ",G22.12)') engyts
 end if
 write(fnum,'(" total energy",T30,": ",G22.12)') engytot
-if (sic) then
-  write(fnum,'("   E0",T30,": ",G22.12)') engytot0
-  write(fnum,'("   sic_energy_pot",T30,": ",G22.12)') sic_energy_pot  
-  write(fnum,'("   sic_energy_kin",T30,": ",G22.12)') sic_energy_kin  
-endif
 if (spinpol) then
   write(fnum,'(" (external B-field energy excluded from total)")')
 end if

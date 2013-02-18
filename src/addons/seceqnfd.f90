@@ -2,7 +2,7 @@
 subroutine seceqnfd(ikloc,evecfd)
 use modmain
 use mod_seceqn
-use mod_sic
+use mod_wannier
 implicit none
 integer, intent(in) :: ikloc
 complex(8), intent(out) :: evecfd(nspinor*nmatmax,nstsv)
@@ -37,10 +37,6 @@ if (spinpol) then
 else
   call sethml(ngk(1,ik),nmat(1,ik),vgkc(1,1,1,ikloc),igkig(1,1,ikloc),&
     &apwalm,h)
-endif
-if (sic) then
-  call sic_genbprj(ikloc,apwalm=apwalm)
-  call sic_hunif_fd(ikloc,nmat(1,ik),h,o)
 endif
 deallocate(apwalm)
 call timer_stop(t_seceqnfv_setup)

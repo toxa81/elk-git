@@ -1,6 +1,5 @@
 subroutine seceqnsv_init
 use modmain
-use mod_sic
 implicit none
 real(8), allocatable :: bmt(:,:,:,:)
 real(8) cb,t1

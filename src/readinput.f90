@@ -14,7 +14,6 @@ use modrdm
 use modtest
 use modqpt
 use mod_addons_q
-use mod_sic
 use mod_wannier
 use mod_linresp
 use mod_expigqr
@@ -1112,34 +1111,6 @@ case('mpigrid')
   end do
   mpigrid_ndim=j
   lmpigrid=.true.
-case('sic')
-  read(50,*,err=20) sic
-case('sicvc')
-  read(50,*,err=20) sicvc
-case('sicec')
-  read(50,*,err=20) sicec
-case('sic_apply')
-  allocate(sicw(32,wann_natom))
-  do i=1,wann_natom
-    read(50,*,err=20) (sicw(j,i),j=1,wann_norb(wann_iprj(2,i)))
-  enddo
-case('nsclsic')
-  read(50,*,err=20) nsclsic
-case('sic_sphere')
-  read(50,*,err=20) lmaxwan,s_nr
-case('sic_smesh')
-  read(50,*,err=20) sic_smesh_n,sic_bsht_niter
-case('sic_rpole')
-  read(50,*,err=20) s_nrpole
-  s_nrpole=s_nrpole+1
-  allocate(s_rpole(s_nrpole))
-  s_rpole(1)=0.d0
-  read(50,*,err=20)(s_rpole(i),i=2,s_nrpole)
-case('sic_localize')
-  read(50,*,err=20) sic_niter_u0,sic_u0_eps
-  read(50,*,err=20) sic_niter_umtrx,sic_umtrx_eps
-case('sic_debug_level')
-  read(50,*,err=20) sic_debug_level
 case('disentangle')
   read(50,*,err=20) ldisentangle  
 case('scvl')
@@ -1158,12 +1129,6 @@ case('papi')
   write(*,'("Error(readinput): too many papi events")')
   write(*,*)
   stop
-case('sic_wan_cutoff')
-  read(50,*,err=20) s_rmax
-case('sic_me_cutoff')
-  read(50,*,err=20) sic_me_cutoff
-case('sic_hmlt_type')
-  read(50,*,err=20) sic_hmlt_type
 case('debug_level')
   read(50,*,err=20) debug_level  
 case('screenu4')

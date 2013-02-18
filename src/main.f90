@@ -12,11 +12,7 @@ implicit none
 ! local variables
 integer itask
 call timer_start(t_runtime,.true.)
-#ifdef _MAD_
-call madness_init
-#else
 call mpi_initialize
-#endif
 call mpi_world_initialize
 if (iproc.eq.0) call timestamp(6,"[main] done mpi_world_initialize")
 call hdf5_initialize
@@ -24,9 +20,6 @@ call hdf5_initialize
 call readinput
 if (iproc.eq.0) call timestamp(6,"[main] done readinput")
 call papi_initialize(npapievents,papievent)
-#ifdef _MAGMA_
-call cublas_init
-#endif
 ! perform the appropriate task
 do itask=1,ntasks
   task=tasks(itask)
@@ -106,14 +99,6 @@ do itask=1,ntasks
     call writetensmom
   case(500)
     call testcheck
-  case(700)
-    call sic_gndstate 
-  case(701)
-    call sic_main
-  !case(702)
-  !  call sic_test_vme
-  !case(703)
-  !  call sic_test_localize
   case(800)
     call response
   case(801)
@@ -142,16 +127,6 @@ do itask=1,ntasks
     call test_bloch_wf
   case(882)
     call writewf
-  !case(883)
-  !  call test_potcoul
-!#ifdef _MAD_
-!  case(890)
-!    call test_madness
-!#endif
-  case(2000)
-    call test_sirius
-  case(2001)
-    call test_sirius_band
   case default
     write(*,*)
     write(*,'("Error(main): task not defined : ",I8)') task
@@ -160,9 +135,6 @@ do itask=1,ntasks
   end select
   call mpi_world_barrier
 end do
-#ifdef _MAGMA_
-call cublas_shutdown
-#endif
 call papi_finalize
 call hdf5_finalize
 call mpi_grid_finalize

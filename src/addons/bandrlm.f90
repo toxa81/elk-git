@@ -11,7 +11,6 @@ subroutine bandrlm
 use modmain
 use mod_mpi_grid
 use mod_wannier
-use mod_sic
 use mod_seceqn
 ! !DESCRIPTION:
 !   Produces a band structure along the path in reciprocal-space which connects
@@ -39,8 +38,6 @@ complex(8), allocatable :: evecsv(:,:)
 complex(8), allocatable :: evecfd(:,:)
 complex(8), allocatable :: apwalm(:,:,:,:)
 complex(8), allocatable :: wfsvmt(:,:,:,:,:)
-real(8), allocatable :: sic_wan_e0k(:,:)
-real(8), allocatable :: sic_wan_e1k(:,:)
 ! low precision for band character array saves memory
 real(4), allocatable :: bc(:,:,:,:,:)
 ! initialise universal variables
@@ -77,14 +74,6 @@ else
 endif
 ! generate effective magntic field integrals for full diagonalization
 call genbeff
-if (sic) then
-  call sic_read_data(.false.)
-  call sic_genblochsum(.true.,.true.)
-  allocate(sic_wan_e0k(sic_wantran%nwan,nkpt))
-  allocate(sic_wan_e1k(sic_wantran%nwan,nkpt))
-  sic_wan_e0k=0.d0
-  sic_wan_e1k=0.d0
-endif
 ! begin parallel loop over k-points
 bc=0.d0
 evalsv=0.d0
@@ -109,24 +98,12 @@ do ikloc=1,nkptloc
   call genapwalm(ngk(1,ik),gkc(1,1,ikloc),tpgkc(1,1,1,ikloc),&
     &sfacgk(1,1,1,ikloc),apwalm)
   call genwfsvc(lmax,lmmax,ngk(1,ik),nstsv,apwalm,evecfd,wfsvmt)
-  if (sic) then
-    do j=1,sic_wantran%nwan
-      sic_wan_e1k(j,ik)=dreal(sic_wan_h0k(j,j,ikloc))
-    enddo
-    call diagzhe(sic_wantran%nwan,sic_wan_h0k(1,1,ikloc),sic_wan_e0k(1,ik))
-  endif
   call bandchar(.false.,lmax,lmmax,wfsvmt,bc(1,1,1,1,ik))
 enddo
 deallocate(evalfv,evecfv,evecsv,evecfd,wfsvmt,apwalm)
 call mpi_grid_reduce(evalsv(1,1),nstsv*nkpt,dims=(/dim_k/),side=.true.)
 if (wannier) call mpi_grid_reduce(wann_e(1,1),nwantot*nkpt,dims=(/dim_k/),&
   &side=.true.)
-if (sic) then
-  call mpi_grid_reduce(sic_wan_e0k(1,1),sic_wantran%nwan*nkpt,&
-    &dims=(/dim_k/),side=.true.)
-  call mpi_grid_reduce(sic_wan_e1k(1,1),sic_wantran%nwan*nkpt,&
-    &dims=(/dim_k/),side=.true.)
-endif
 do ik=1,nkpt
   call mpi_grid_reduce(bc(1,1,1,1,ik),lmmax*natmtot*nspinor*nstsv,&
     &dims=(/dim_k/),side=.true.)
@@ -142,11 +119,7 @@ if (mpi_grid_root()) then
     write(50,'("     ")')
   end do
   close(50)
-  if (sic) then
-    open(50,file='sic_bands.dat',action='WRITE',form='FORMATTED')
-  else
-    open(50,file='bands.dat',action='WRITE',form='FORMATTED')
-  endif
+  open(50,file='bands.dat',action='WRITE',form='FORMATTED')
   do ist=1,nstsv
     do ik=1,nkpt
       write(50,'(2G18.10)') dpp1d(ik),(evalsv(ist,ik)-efermi)*ha2ev
@@ -166,11 +139,7 @@ if (mpi_grid_root()) then
       write(50,*)
     end do
     close(50)
-    if (sic) then
-      open(50,file='sic_bands_wann.dat',action='WRITE',form='FORMATTED')
-    else
-      open(50,file='bands_wann.dat',action='WRITE',form='FORMATTED')
-    endif
+    open(50,file='bands_wann.dat',action='WRITE',form='FORMATTED')
     do ist=1,nwantot
       do ik=1,nkpt
         write(50,'(2G18.10)') dpp1d(ik),(wann_e(ist,ik)-efermi)*ha2ev
@@ -178,24 +147,6 @@ if (mpi_grid_root()) then
       write(50,*)
     end do
     close(50)
-  endif
-  if (sic) then
-    open(50,file='sic_bands_wann_h0.dat',action='WRITE',form='FORMATTED')
-    do ist=1,sic_wantran%nwan
-      do ik=1,nkpt
-        write(50,'(2G18.10)') dpp1d(ik),(sic_wan_e0k(ist,ik)-efermi)*ha2ev
-      end do
-      write(50,*)
-    end do
-    close(50)  
-    open(50,file='sic_wann_h0_diag.dat',action='WRITE',form='FORMATTED')
-    do ist=1,sic_wantran%nwan
-      do ik=1,nkpt
-        write(50,'(2G18.10)') dpp1d(ik),(sic_wan_e1k(ist,ik)-efermi)*ha2ev
-      end do
-      write(50,*)
-    end do
-    close(50)  
   endif
   open(50,file='BNDCHR.OUT',action='WRITE',form='FORMATTED')
   write(50,*)lmmax,nspecies,natmtot,nspinor,nstfv,nstsv,nkpt,nvp1d
@@ -259,7 +210,6 @@ if (mpi_grid_root()) then
   write(*,*)
 endif
 deallocate(bc)
-if (sic) deallocate(sic_wan_e0k,sic_wan_e1k)
 return
 end subroutine
 !EOC

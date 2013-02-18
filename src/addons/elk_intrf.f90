@@ -257,26 +257,3 @@ do ispn=1,nspinor
 enddo
 return
 end subroutine
-
-subroutine sic_wan_rho(j,x,rcutoff,wrho)
-use modmain
-use mod_nrkp
-use mod_wannier
-use mod_sic
-implicit none
-integer, intent(in) :: j
-real(8), intent(inout) :: x(3)
-real(8), intent(in) :: rcutoff
-real(8), intent(out) :: wrho
-complex(8) wanval(nspinor)
-integer ispn
-!
-wrho=0.d0
-call s_spinor_func_val(x,lmaxwan,s_wlm(1,1,1,j),wanval,rcutoff=rcutoff)
-do ispn=1,nspinor
-  wrho=wrho+abs(wanval(ispn))**2
-enddo
-return
-end subroutine
-
-

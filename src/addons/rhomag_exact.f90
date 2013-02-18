@@ -1,6 +1,5 @@
 subroutine rhomag_exact
 use modmain
-use mod_sic
 implicit none
 integer ikloc,idm,n
 integer ias,ic,is,lm3,l1,io1,j1,l2,io2,j2,ispn
@@ -17,11 +16,7 @@ rhomagmt=0.d0
 rhomagit=zzero
 call timer_start(t_rho_mag_sum)
 do ikloc=1,nkptloc
-  !if (sic.and.sic_hmlt_type.eq.0) then
-  !  call sic_rhomagk_exact(ikloc)
-  !else
-    call rhomagk_exact(ikloc)
-  !endif
+  call rhomagk_exact(ikloc)
 end do
 n=nlufrmax*nlufrmax*lmmaxvr*natmtot*nspinor
 call mpi_grid_reduce(rhomagmt(1,1,1,1,1),n,dims=(/dim_k/))

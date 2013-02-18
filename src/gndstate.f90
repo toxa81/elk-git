@@ -11,9 +11,7 @@ subroutine gndstate
 use modmain
 use modldapu
 use mod_wannier
-use mod_sic
 use mod_seceqn
-use mod_libapw
 ! !DESCRIPTION:
 !   Computes the self-consistent Kohn-Sham ground-state. General information is
 !   written to the file {\tt INFO.OUT}. First- and second-variational
@@ -105,7 +103,7 @@ allocate(work(nwork))
 ! initialise or read the charge density and potentials from file
 iscl=0
 if (wproc) write(60,*)
-if ((task.eq.1).or.(task.eq.3).or.(sic.and.isclsic.gt.1)) then
+if ((task.eq.1).or.(task.eq.3)) then
   call readstate
   if (wproc) write(60,'("Potential read in from STATE.OUT")')
   if (autolinengy) call readfermi
@@ -139,10 +137,6 @@ else
   endif
 end if
 if (wproc) call flushifc(60)
-if (sic) then
-  call sic_read_data(.true.)
-  call sic_genblochsum(.true.,.true.)
-endif
 ! set stop flag
 tstop=.false.
 10 continue
@@ -188,9 +182,6 @@ do iscl=1,maxscl
 ! compute the overlap radial integrals
   call timer_start(t_hbo_rad)
   call olprad
-#ifdef _LIBAPW_
-  call libapw_seceqn_init
-#else
 ! compute the Hamiltonian radial integrals
   call hmlrad
 ! generate effective magntic field integrals for full diagonalization
@@ -201,13 +192,8 @@ do iscl=1,maxscl
   else
     call genbeffmt
   endif 
-#endif
   call timer_stop(t_hbo_rad)
   evalsv(:,:)=0.d0
-  if (sic) sic_evalsum=0.d0
-  if (iscl.eq.1.and.ldapu.ne.0) then
-    call init_vmatlu
-  endif
 ! begin parallel loop over k-points
   do ikloc=1,nkptloc
 ! solve the secular equation
@@ -219,7 +205,6 @@ do iscl=1,maxscl
     endif
   end do  
   call mpi_grid_reduce(evalsv(1,1),nstsv*nkpt,dims=(/dim_k/),all=.true.)
-  if (sic) call sic_write_eval
   if (wproc) then
 ! find the occupation numbers and Fermi energy
     call occupy
@@ -235,16 +220,11 @@ do iscl=1,maxscl
   call mpi_grid_bcast(swidth)
   call mpi_grid_bcast(occsv(1,1),nstsv*nkpt)
   if (wannier) call wann_ene_occ
-#ifdef _LIBAPW_
-  call libapw_rhomag
-#else  
   if (texactrho.or..not.tsveqn) then
     call rhomag_exact
   else
     call rhomag
   endif
-#endif
-  if (sic) call mpi_grid_reduce(sic_evalsum,dims=(/dim_k/))
 ! LDA+U
   if (iscl.gt.1.and.ldapu.ne.0) then
 ! generate the LDA+U density matrix
@@ -409,12 +389,6 @@ do iscl=1,maxscl
       &timer_get_value(t_pot_ha)
     write(60,'("  density matrix setup                      : ",F12.2)')&
       &timer_get_value(t_dmat)
-    if (sic) then
-      write(60,'("  sic_genfvprj                              : ",F12.2)')&
-        &timer_get_value(t_sic_genfvprj)
-      write(60,'("  sic_hunif                                 : ",F12.2)')&
-        &timer_get_value(t_sic_hunif)
-    endif
   endif !wproc
 ! end the self-consistent loop
 end do !iscl
@@ -452,9 +426,6 @@ if (mpi_grid_side(dims=(/dim_k/))) then
   end do
 endif
 ! write SIC related functions
-if (sic) then
-  call sic_write_blochsum
-endif
 call mpi_grid_bcast(tstop)
 !-----------------------!
 !     compute forces    !

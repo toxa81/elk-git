@@ -10,7 +10,6 @@ subroutine seceqnfv(ik,nmatp,ngp,igpig,vgpc,apwalm,evalfv,evecfv)
 ! !USES:
 use modmain
 use mod_seceqn
-use mod_libapw
 ! !INPUT/OUTPUT PARAMETERS:
 !   nmatp  : order of overlap and Hamiltonian matrices (in,integer)
 !   ngp    : number of G+k-vectors for augmented plane waves (in,integer)
@@ -70,11 +69,6 @@ call timer_start(t_seceqnfv_setup)
 allocate(h(np),o(np))
 h(:)=zzero
 o(:)=zzero
-!#ifdef _LIBAPW_
-!allocate(h1(np),o1(np))
-!h1(:)=zzero
-!o1(:)=zzero
-!#endif
 if (packed) then
 ! Hamiltonian
   do is=1,nspecies
@@ -97,13 +91,6 @@ if (packed) then
 else
   call sethml(ngp,nmatp,vgpc,igpig,apwalm,h)
   call setovl(ngp,nmatp,igpig,apwalm,o)
-!#ifdef _LIBAPW_
-!  call lapw_seceqn_fv_old(ik,apwalm,h1,o1,evalfv,evecfv)
-!  write(*,*)"diff h=",sum(abs(h-h1))
-!  write(*,*)"diff o=",sum(abs(o-o1))
-!  !h=h1
-!  !o=o1
-!#endif
 endif
 call timesec(ts1)
 call timer_stop(t_seceqnfv_setup)

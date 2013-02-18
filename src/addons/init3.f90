@@ -1,9 +1,7 @@
 subroutine init3
 use modmain
 use mod_wannier
-use mod_sic
 use mod_rs
-use mod_libapw
 implicit none
 integer ia,is,l,m,ir,i1,i2,i3,i,ik,l1,l2,l3,m1,m2,m3,lm1,lm2,lm3
 integer itp
@@ -120,7 +118,6 @@ if (.not.tsveqn.and.spinpol) then
   allocate(beffig(ngvec,ndmag))
 endif
 if (wannier) call wann_init
-if (sic) call sic_init
 call rs_init
 ! init xml_info variables
 if (.not.allocated(xml_info%magmom)) allocate(xml_info%magmom(natmtot))
@@ -146,7 +143,6 @@ if (debug_level.ge.4) then
 endif
 !if (mpi_grid_root()) call srclog
 !if (mpi_grid_root()) call print_info
-call libapw_init
 occsv=0.d0
 do ik=1,nkpt
   if (ndmag.eq.0.or.ndmag.eq.3) then
