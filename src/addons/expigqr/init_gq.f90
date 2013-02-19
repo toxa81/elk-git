@@ -42,12 +42,14 @@ if (tg0q) then
 endif
 
 ! generate spherical harmonics for G+q vectors
+!$OMP PARALLEL DO DEFAULT(shared) PRIVATE(t1)
 do ig=1,ngq(iq)
 ! get spherical coordinates and length of G+q
   call sphcrd(vgqc(:,ig,iq),t1,tpgq(:,ig))
 ! generate spherical harmonics for G+q'
   call genylm(lmaxexp,tpgq(:,ig),ylmgq(:,ig))
 enddo
+!$OMP END PARALLEL DO
 
 ! generate structure factor for G+q vectors
 call gensfacgp(ngq(iq),vgqc(1,1,iq),ngq(iq),sfacgq)

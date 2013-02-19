@@ -345,6 +345,51 @@ if (tbnd) deallocate(evecsv_)
 return
 end subroutine
 
+subroutine genwffvc(lmax,lmmax,ngp,apwalm,evecfv,wffvmt)
+use modmain
+implicit none
+integer, intent(in) :: lmax
+integer, intent(in) :: lmmax
+integer, intent(in) :: ngp
+complex(8), intent(in) :: apwalm(ngkmax,lmmaxapw,apwordmax,natmtot)  
+complex(8), intent(in) :: evecfv(nmatmax,nstfv)
+complex(8), intent(out) :: wffvmt(lmmax,nufrmax,natmtot,nstfv)
+!
+integer ias,is,l,m,io,ilo,lm,i1,n
+integer ordl(0:lmax)  
+complex(8), allocatable :: wfmt(:,:,:,:)
+!
+wffvmt=zzero
+allocate(wfmt(lmmaxapw,apwordmax,natmtot,nstfv))
+n=lmmaxapw*apwordmax*natmtot
+call zgemm('T','N',n,nstfv,ngp,zone,apwalm,ngkmax,evecfv,nmatmax,zzero,wfmt,n)
+do ias=1,natmtot
+  ordl=0
+  is=ias2is(ias)
+  do l=0,lmax
+    do io=1,apword(l,is)
+      do m=-l,l
+        lm=idxlm(l,m)
+        wffvmt(lm,io,ias,:)=wfmt(lm,io,ias,:)
+      enddo !m
+    enddo !io
+    ordl(l)=apword(l,is)
+  enddo !l
+  do ilo=1,nlorb(is)
+    l=lorbl(ilo,is)
+    if (l.le.lmax) then
+      ordl(l)=ordl(l)+1
+      do m=-l,l
+        lm=idxlm(l,m)
+        i1=ngp+idxlo(lm,ilo,ias)
+        wffvmt(lm,ordl(l),ias,:)=evecfv(i1,:)
+      enddo !m
+    endif
+  enddo !ilo    
+enddo
+deallocate(wfmt)
+return
+end subroutine
 
 subroutine genwfsvc(lmax,lmmax,ngp,nwf,apwalm,evecfd,wfsvmt,wfsvit)
 use modmain

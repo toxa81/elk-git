@@ -10,10 +10,14 @@ real(8), allocatable :: tpgknr(:,:,:)
 complex(8), allocatable :: sfacgknr(:,:,:)
 complex(8), allocatable :: ylmgknr(:,:,:)
 
+complex(8), allocatable :: wffvmtnrloc(:,:,:,:,:)
 complex(8), allocatable :: wfsvmtnrloc(:,:,:,:,:,:)
 complex(8), allocatable :: wfsvitnrloc(:,:,:,:)
 complex(8), allocatable :: wanncnrloc(:,:,:)
 complex(8), allocatable :: pmatnrloc(:,:,:,:)
+
+complex(8), allocatable :: evecfvnrloc(:,:,:,:)
+complex(8), allocatable :: evecsvnrloc(:,:,:)
 
 real(8), allocatable :: evalsvnr(:,:)
 real(8), allocatable :: occsvnr(:,:)
@@ -214,8 +218,6 @@ integer ik,ikloc,n,j,ik1,isym,i,ierr
 complex(8), allocatable :: apwalm(:,:,:,:)
 real(8) w2,t1,sz
 logical, external :: wann_diel
-complex(8), allocatable :: evecfvnrloc(:,:,:,:)
-complex(8), allocatable :: evecsvnrloc(:,:,:)
 complex(8), allocatable :: evecfdnrloc(:,:,:)
 complex(8), allocatable :: evec(:,:)
 !
@@ -285,14 +287,17 @@ if (wproc.and.fout.gt.0) then
   if (fout.ne.6) call flushifc(fout)
 endif
 call mpi_grid_barrier()
+if (allocated(wffvmtnrloc)) deallocate(wffvmtnrloc)
+allocate(wffvmtnrloc(lmmaxapw,nufrmax,natmtot,nstfv,nkptnrloc))
 if (allocated(wfsvmtnrloc)) deallocate(wfsvmtnrloc)
 allocate(wfsvmtnrloc(lmmaxapw,nufrmax,natmtot,nspinor,nstsv,nkptnrloc))
 if (allocated(wfsvitnrloc)) deallocate(wfsvitnrloc)
 allocate(wfsvitnrloc(ngkmax,nspinor,nstsv,nkptnrloc))
-if (tsveqn) then
-  allocate(evecfvnrloc(nmatmax,nstfv,nspnfv,nkptnrloc))
-  allocate(evecsvnrloc(nstsv,nstsv,nkptnrloc))
-else
+if (allocated(evecfvnrloc)) deallocate(evecfvnrloc)
+allocate(evecfvnrloc(nmatmax,nstfv,nspnfv,nkptnrloc))
+if (allocated(evecsvnrloc)) deallocate(evecsvnrloc)
+allocate(evecsvnrloc(nstsv,nstsv,nkptnrloc))
+if (.not.tsveqn) then
   allocate(evecfdnrloc(nspinor*nmatmax,nstsv,nkptnrloc))
 endif
 if (lpmat) then
@@ -337,6 +342,7 @@ if (wproc.and.fout.gt.0) then
   if (fout.ne.6) call flushifc(fout)
 endif
 ! generate wave functions from eigen vectors
+wffvmtnrloc=zzero
 wfsvmtnrloc=zzero
 wfsvitnrloc=zzero
 call timer_start(t_genwf,reset=.true.)
@@ -359,6 +365,8 @@ do ikloc=1,nkptnrloc
   call genapwalm(ngknr(ikloc),gknr(1,ikloc),tpgknr(1,1,ikloc),&
       &sfacgknr(1,1,ikloc),apwalm)
   if (tsveqn) then
+    call genwffvc(lmaxapw,lmmaxapw,ngknr(ikloc),apwalm,&
+        &evecfvnrloc(1,1,1,ikloc),wffvmtnrloc(1,1,1,1,ikloc))
     call evecsvfd(evecfvnrloc(1,1,1,ikloc),evecsvnrloc(1,1,ikloc),evec)
   else
     evec(:,:)=evecfdnrloc(:,:,ikloc)
@@ -502,9 +510,7 @@ endif
 if (wproc.and.fout.gt.0) then
   write(fout,'("Done.")')
 endif
-if (tsveqn) then
-  deallocate(evecfvnrloc,evecsvnrloc)
-else
+if (.not.tsveqn) then
   deallocate(evecfdnrloc)
 endif
 end subroutine

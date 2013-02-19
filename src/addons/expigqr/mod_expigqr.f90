@@ -83,8 +83,10 @@ type(wannier_transitions) :: megqwantran
 
 contains
 
-! the subroutine computes <psi_{n,k}|e^{-i(G+q)x}|psi_{n',k+q}>  and
-!  <W_n|e^{-i(G+q)x}|W_{n'T}> 
+!==============================================================================!
+! the subroutine computes <psi_{n,k}|e^{-i(G+q)x}|psi_{n',k+q}>  and           !
+!  <W_n|e^{-i(G+q)x}|W_{n'T}>                                                  !  
+!==============================================================================!
 subroutine genmegq(iq,tout,tg0q,allibt)
 use modmain
 use mod_nrkp
@@ -97,6 +99,9 @@ logical, intent(in) :: tg0q
 logical, intent(in) :: allibt
 ! allocatable arrays
 integer, allocatable :: igkignr_jk(:)
+complex(8), allocatable :: wffvmt_jk(:,:,:,:)
+complex(8), allocatable :: evecfv_jk(:,:)
+complex(8), allocatable :: evecsv_jk(:,:)
 complex(8), allocatable :: wfsvmt_jk(:,:,:,:,:)
 complex(8), allocatable :: wfsvit_jk(:,:,:)
 integer ngknr_jk
@@ -151,7 +156,7 @@ if (wannier_megq) then
   endif
 endif
 
-call timer_start(1,reset=.true.)
+call timer_start(t_init_kgq,reset=.true.)
 ! initialize G+q vector arays
 call init_gq(iq,lmaxexp,lmmaxexp,tg0q)
 ! initialize k+q array
@@ -160,11 +165,12 @@ call init_kq(iq)
 call init_band_trans(allibt)
 ! initialize Gaunt-like coefficients 
 call init_gntuju(iq,lmaxexp)
-call timer_stop(1)
+call timer_stop(t_init_kgq)
 if (wproc) then
   write(150,*)
   write(150,'("maximum |G+q| [1/a.u.]                        : ",G18.10)')gqmax  
   write(150,'("number of G-vectors                           : ",I4)')ngq(iq)   
+  write(150,'("number of G+q-shells                          : ",I4)')ngqsh(iq)   
   write(150,*)
   write(150,'("q-vector (lat.coord.)                         : ",&
     & 3G18.10)')vqlnr(:,iq)
@@ -209,13 +215,16 @@ if (wproc) then
   write(150,'("Maximum number of Gaunt-like coefficients : ",I8)')ngntujumax
   write(150,'("Array size of Gaunt-like coefficients (MB) : ",I6)')sz
   write(150,*)
-  write(150,'("Init done in ",F8.2," seconds")')timer_get_value(1)
+  write(150,'("Init done in ",F8.2," seconds")')timer_get_value(t_init_kgq)
   call flushifc(150)
 endif
 
 if (allocated(megqblh)) deallocate(megqblh)
 allocate(megqblh(nstsv*nstsv,ngq(iq),nkptnrloc))
 megqblh(:,:,:)=zzero
+allocate(wffvmt_jk(lmmaxapw,nufrmax,natmtot,nstfv))
+allocate(evecfv_jk(nmatmax,nstfv))
+allocate(evecsv_jk(nstsv,nstsv))
 allocate(wfsvmt_jk(lmmaxapw,nufrmax,natmtot,nspinor,nstsv))
 allocate(wfsvit_jk(ngkmax,nspinor,nstsv))
 allocate(igkignr_jk(ngkmax))
@@ -229,37 +238,38 @@ endif
 
 i=0
 nkstep=mpi_grid_map(nkptnr,dim_k,x=i)
-call timer_reset(1)
-call timer_reset(2)
-call timer_reset(3)
-call timer_reset(4)
-call timer_reset(5)
+call timer_reset(t_getwfkq)
+call timer_reset(t_genmegqblh)
+call timer_reset(t_megqblh_mt)
+call timer_reset(t_megqblh_it)
+call timer_reset(t_megqblh_prod)
 do ikstep=1,nkstep
 ! transmit wave-functions
-  call timer_start(1)
-  call getwfkq(ikstep,ngknr_jk,igkignr_jk,wfsvmt_jk,wfsvit_jk)
-  call timer_stop(1)
+  call timer_start(t_getwfkq)
+  call getwfkq(ikstep,ngknr_jk,igkignr_jk,wfsvmt_jk,wfsvit_jk,evecfv_jk,&
+              &evecsv_jk,wffvmt_jk)
+  call timer_stop(t_getwfkq)
 ! compute matrix elements  
-  call timer_start(2)
+  call timer_start(t_genmegqblh)
   if (ikstep.le.nkptnrloc) then
     call genmegqblh(iq,ikstep,ngknr(ikstep),ngknr_jk,igkignr(1,ikstep),&
-      igkignr_jk,wfsvmtnrloc(1,1,1,1,1,ikstep),wfsvmt_jk,&
-      wfsvitnrloc(1,1,1,ikstep),wfsvit_jk)
+                   &igkignr_jk,wfsvmtnrloc(1,1,1,1,1,ikstep),wfsvmt_jk,&
+                   &wfsvitnrloc(1,1,1,ikstep),wfsvit_jk)
   endif !ikstep.le.nkptnrloc
-  call timer_stop(2)
+  call timer_stop(t_genmegqblh)
 enddo !ikstep
 if (wannier_megq) then
-  call timer_start(6,reset=.true.)
+  call timer_start(t_genmegqwan,reset=.true.)
 ! compute matrix elements of e^{-i(G+q)x} in the basis of Wannier functions
   call genmegqwan(iq)
 ! sum over all k-points and interband transitions to get <n,T=0|e^{-i(G+q)x}|n',T'>
-  call mpi_grid_reduce(megqwan(1,1),megqwantran%nwt*ngq(iq),&
-    &dims=(/dim_k/),all=.true.)
+  call mpi_grid_reduce(megqwan(1,1),megqwantran%nwt*ngq(iq),dims=(/dim_k/),&
+                       &all=.true.)
   megqwan=megqwan/nkptnr
-  call timer_stop(6)
+  call timer_stop(t_genmegqwan)
   if (wproc) then
     write(150,*)
-    write(150,'("Time for megqwan : ",F8.2)')timer_get_value(6)
+    write(150,'("Time for megqwan : ",F8.2)')timer_get_value(t_genmegqwan)
   endif
   !call printmegqwan(iq)
 endif
@@ -302,19 +312,19 @@ if (vq_gamma(iq).and.allocated(pmatnrloc)) then
 endif
 !call printmegqblh(iq)
 ! time for wave-functions send/recieve
-t1=timer_get_value(1)
+t1=timer_get_value(t_getwfkq)
 call mpi_grid_reduce(t1,dims=(/dim_k/))
 ! total time for matrix elements calculation
-t2=timer_get_value(2)
+t2=timer_get_value(t_genmegqblh)
 call mpi_grid_reduce(t2,dims=(/dim_k/))
 ! time to precompute MT
-t3=timer_get_value(3)
+t3=timer_get_value(t_megqblh_mt)
 call mpi_grid_reduce(t3,dims=(/dim_k/))
 ! time to precompute IT
-t4=timer_get_value(4)
+t4=timer_get_value(t_megqblh_it)
 call mpi_grid_reduce(t4,dims=(/dim_k/))
 ! time to compute ME
-t5=timer_get_value(5)
+t5=timer_get_value(t_megqblh_prod)
 call mpi_grid_reduce(t5,dims=(/dim_k/))
 ! approximate number of matrix elements
 dn1=1.d0*nmegqblh(1)*ngq(iq)*nkptnr
@@ -331,6 +341,9 @@ if (wproc) then
   write(150,'("Speed (me/sec/proc)                : ",F10.2)')dn1/t2
   call flushifc(150)
 endif
+deallocate(wffvmt_jk)
+deallocate(evecfv_jk)
+deallocate(evecsv_jk)
 deallocate(wfsvmt_jk)
 deallocate(wfsvit_jk)
 deallocate(igkignr_jk)
@@ -413,6 +426,132 @@ do ikstep=1,nkstep
   endif
 enddo
 deallocate(jkmap)
+call mpi_grid_barrier((/dim_k/))
+return
+end subroutine
+
+subroutine getwfkq(ikstep,ngknr_jk,igkignr_jk,wfsvmt_jk,wfsvit_jk,evecfv_jk,&
+                  &evecsv_jk,wffvmt_jk)
+use modmain
+use mod_nrkp
+use mod_wannier
+implicit none
+integer, intent(in) :: ikstep
+integer, intent(out) :: ngknr_jk
+integer, intent(out) :: igkignr_jk(ngkmax)
+complex(8), intent(out) :: wfsvmt_jk(lmmaxapw,nufrmax,natmtot,nspinor,nstsv)
+complex(8), intent(out) :: wfsvit_jk(ngkmax,nspinor,nstsv)
+complex(8), intent(out) :: evecfv_jk(ngkmax,nstfv)
+complex(8), intent(out) :: evecsv_jk(nstsv,nstsv)
+complex(8), intent(out) :: wffvmt_jk(lmmaxapw,nufrmax,natmtot,nstfv)
+
+integer i,ik,jk,nkptnrloc1,jkloc,j,tag
+
+! each proc knows that it needs wave-functions at jk=idxkq(1,ik) (at k'=k+q)
+!
+! the distribution of k-points could look like this
+!                p0          p1          p2
+!          +-----------+-----------+-----------+
+! ikstep=1 | ik=1 jk=3 | ik=4 jk=2 | ik=7 jk=5 |
+! ikstep=2 | ik=2 jk=4 | ik=5 jk=7 | ik=8 jk=6 |
+! ikstep=3 | ik=3 jk=1 | ik=6 jk=8 |  -        |
+!          +-----------+-----------+-----------+
+
+! two actions are required:
+! 1) each processor scans trough other processors and determines, which
+!    processors require its part of k-points; during this phase it
+!    executes non-blocking 'send'
+! 2) each processor must know the index of other processor, from which 
+!    it gets jk-point; during this phase it executes blocking 'recieve'
+
+do i=0,mpi_grid_dim_size(dim_k)-1
+! number of k-points on the processor i
+  nkptnrloc1=mpi_grid_map(nkptnr,dim_k,x=i)
+  if (ikstep.le.nkptnrloc1) then
+! for the step ikstep processor i computes matrix elements between k-point ik 
+    ik=mpi_grid_map(nkptnr,dim_k,x=i,loc=ikstep)
+! and k-point jk
+    jk=idxkq(1,ik)
+! find the processor j and local index of k-point jkloc for the k-point jk
+    jkloc=mpi_grid_map(nkptnr,dim_k,glob=jk,x=j)
+    if (mpi_grid_dim_pos(dim_k).eq.j.and.mpi_grid_dim_pos(dim_k).ne.i) then
+! send to i
+      tag=(ikstep*mpi_grid_dim_size(dim_k)+i)*10
+
+      call mpi_grid_send(wfsvmtnrloc(1,1,1,1,1,jkloc),&
+                        &lmmaxapw*nufrmax*natmtot*nspinor*nstsv,&
+                        &(/dim_k/),(/i/),tag)
+      
+      call mpi_grid_send(wfsvitnrloc(1,1,1,jkloc),ngkmax*nspinor*nstsv,&
+                        &(/dim_k/),(/i/),tag+1)
+      
+      call mpi_grid_send(ngknr(jkloc),1,&
+                        &(/dim_k/),(/i/),tag+2)
+      
+      call mpi_grid_send(igkignr(1,jkloc),ngkmax,&
+                        &(/dim_k/),(/i/),tag+3)
+      
+      if (wannier_megq) then
+        call mpi_grid_send(wanncnrloc(1,1,jkloc),nwantot*nstsv,(/dim_k/),&
+                          &(/i/),tag+4)
+      endif
+      
+      call mpi_grid_send(evecfvnrloc(1,1,1,jkloc),nmatmax*nstfv,(/dim_k/),&
+                        &(/i/),tag+5)
+      
+      call mpi_grid_send(evecsvnrloc(1,1,jkloc),nstsv*nstsv,(/dim_k/),&
+                        &(/i/),tag+6)
+      
+      call mpi_grid_send(wffvmtnrloc(1,1,1,1,jkloc),&
+                        &lmmaxapw*nufrmax*natmtot*nstfv,(/dim_k/),(/i/),tag+7)
+    endif
+    if (mpi_grid_dim_pos(dim_k).eq.i) then
+      if (j.ne.i) then
+! recieve from j
+        tag=(ikstep*mpi_grid_dim_size(dim_k)+i)*10
+        
+        call mpi_grid_recieve(wfsvmt_jk(1,1,1,1,1),&
+                             &lmmaxapw*nufrmax*natmtot*nspinor*nstsv,&
+                             &(/dim_k/),(/j/),tag)
+        
+        call mpi_grid_recieve(wfsvit_jk(1,1,1),&
+                             &ngkmax*nspinor*nstsv,&
+                             &(/dim_k/),(/j/),tag+1)
+        
+        call mpi_grid_recieve(ngknr_jk,1,&
+                             &(/dim_k/),(/j/),tag+2)
+        
+        call mpi_grid_recieve(igkignr_jk(1),ngkmax,&
+                             &(/dim_k/),(/j/),tag+3)
+        
+        if (wannier_megq) then
+          call mpi_grid_recieve(wann_c_jk(1,1,ikstep),nwantot*nstsv,&
+                               &(/dim_k/),(/j/),tag+4)
+        endif
+        
+        call mpi_grid_recieve(evecfv_jk(1,1),nmatmax*nstfv,&
+                             &(/dim_k/),(/j/),tag+5)
+        
+        call mpi_grid_recieve(evecsv_jk(1,1),nstsv*nstsv,&
+                             &(/dim_k/),(/j/),tag+6)
+
+        call mpi_grid_recieve(wffvmt_jk(1,1,1,1),&
+                             &lmmaxapw*nufrmax*natmtot*nstfv,&
+                             &(/dim_k/),(/j/),tag+7)
+      else
+! local copy
+        wfsvmt_jk(:,:,:,:,:)=wfsvmtnrloc(:,:,:,:,:,jkloc)
+        wfsvit_jk(:,:,:)=wfsvitnrloc(:,:,:,jkloc)
+        ngknr_jk=ngknr(jkloc)
+        igkignr_jk(:)=igkignr(:,jkloc)
+        if (wannier_megq) wann_c_jk(:,:,ikstep)=wanncnrloc(:,:,jkloc)
+        evecfv_jk(:,:)=evecfvnrloc(:,:,1,jkloc)
+        evecsv_jk(:,:)=evecsvnrloc(:,:,jkloc)
+        wffvmt_jk(:,:,:,:)=wffvmtnrloc(:,:,:,:,jkloc)
+      endif
+    endif
+  endif   
+enddo
 call mpi_grid_barrier((/dim_k/))
 return
 end subroutine

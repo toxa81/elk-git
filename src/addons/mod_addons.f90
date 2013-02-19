@@ -199,8 +199,13 @@ integer, parameter :: t_read_evec=51
 integer, parameter :: t_genwf=52 
 integer, parameter :: t_genwan=53 
 integer, parameter :: t_genpmat=54 
-
-
+integer, parameter :: t_init_kgq=55
+integer, parameter :: t_getwfkq=56
+integer, parameter :: t_genmegqblh=57
+integer, parameter :: t_genmegqwan=58
+integer, parameter :: t_megqblh_mt=59
+integer, parameter :: t_megqblh_it=60
+integer, parameter :: t_megqblh_prod=61
 
 
 !--------------!

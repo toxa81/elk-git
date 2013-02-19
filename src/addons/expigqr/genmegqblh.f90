@@ -39,6 +39,37 @@ jk=idxkq(1,ik)
 ! G_q vector 
 igkq=idxkq(2,ik)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 do ispn1=1,nspinor
   if (expigqr22.eq.1) ispn2=ispn1
 ! index of the interband transitions
@@ -53,7 +84,7 @@ do ispn1=1,nspinor
       if (spinor_ud(ispn1,ist1,ik).eq.0) l1=.false.
     endif
     if (l1) then
-      call timer_start(3)
+      call timer_start(t_megqblh_mt)
       call papi_timer_start(pt_megqblh_mt)
       do ig=1,ngq(iq)
 ! precompute muffint-tin part of \psi_1^{*}(r)*e^{-i(G+q)r}
@@ -68,11 +99,11 @@ do ispn1=1,nspinor
           wftmp1((ias-1)*lmmaxapw*nufrmax+1:ias*lmmaxapw*nufrmax,ig)=b2(:)
         enddo !ias
       enddo !ig  
-      call timer_stop(3)
+      call timer_stop(t_megqblh_mt)
       call papi_timer_stop(pt_megqblh_mt)
 ! interstitial part
       call papi_timer_start(pt_megqblh_it)
-      call timer_start(4)
+      call timer_start(t_megqblh_it)
       wfir1=zzero
       do ig1=1,ngknr1
         ifg=igfft(igkignr1(ig1))
@@ -91,10 +122,10 @@ do ispn1=1,nspinor
           wftmp1(lmmaxapw*nufrmax*natmtot+ig2,ig)=dconjg(wfir1(ifg))
         enddo
       enddo
-      call timer_stop(4)      
+      call timer_stop(t_megqblh_it)      
       call papi_timer_stop(pt_megqblh_it)
     endif !l1
-    call timer_start(5)
+    call timer_start(t_megqblh_prod)
     n1=0
 ! collect right |ket> states into matrix wftmp2
     do while ((i+n1).le.nmegqblh(ikloc))
@@ -109,7 +140,7 @@ do ispn1=1,nspinor
     call zgemm('T','N',n1,ngq(iq),wfsize,zone,wftmp2,wfsize,wftmp1,wfsize,&
       &zone,megqblh(i,1,ikloc),nstsv*nstsv)
     i=i+n1
-    call timer_stop(5)
+    call timer_stop(t_megqblh_prod)
   enddo !while
 enddo !ispn
 deallocate(wftmp1)

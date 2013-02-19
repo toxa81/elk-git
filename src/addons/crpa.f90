@@ -98,12 +98,16 @@ else
   megq_include_bands=(/100.1d0,-100.1d0/)
 endif
 call papi_timer_start(pt_crpa_tot2)
-! main loop over q-points
+
+!==============================================================================!
+! main loop over q-points                                                      !
+!==============================================================================!
 do iqloc=1,nvqloc
   iq=mpi_grid_map(nvq,dim_q,loc=iqloc)
   call genmegq(iq,.true.,.true.,.false.)
   call genu4(iq,nwloc)
 enddo
+
 do iwloc=1,nwloc
   do it=1,megqwantran%ntr
     call mpi_grid_reduce(u4(1,1,it,iwloc),megqwantran%nwt*megqwantran%nwt,dims=(/dim_q/))
