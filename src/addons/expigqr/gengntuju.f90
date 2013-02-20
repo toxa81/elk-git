@@ -128,7 +128,8 @@ do igloc=1,ngqloc
                   ngntuju(ic,ig)=ngntuju(ic,ig)+1
                   n=ngntuju(ic,ig)
                   gntuju(n,ic,ig)=zt1
-                  igntuju(1,n,ic,ig)=lm1+(io1-1)*lmmaxapw
+                  !igntuju(1,n,ic,ig)=lm1+(io1-1)*lmmaxapw
+                  igntuju(1,n,ic,ig)=compact_wf_index%idxmt(lm1+(io1-1)*lmmaxapw,ias)
                   igntuju(2,n,ic,ig)=compact_wf_index%idxmt(lm2+(io2-1)*lmmaxapw,ias)
                 endif
               enddo !io2

@@ -99,10 +99,8 @@ logical, intent(in) :: tg0q
 logical, intent(in) :: allibt
 ! allocatable arrays
 integer, allocatable :: igkignr_jk(:)
-complex(8), allocatable :: wffvmt_jk(:,:,:,:)
-complex(8), allocatable :: evecfv_jk(:,:)
-complex(8), allocatable :: evecsv_jk(:,:)
 complex(8), allocatable :: wfsvmt_jk(:,:,:,:,:)
+complex(8), allocatable :: compact_wfsvmt_jk(:,:,:)
 complex(8), allocatable :: wfsvit_jk(:,:,:)
 integer ngknr_jk
 integer i,ikstep,sz,ig
@@ -222,10 +220,8 @@ endif
 if (allocated(megqblh)) deallocate(megqblh)
 allocate(megqblh(nstsv*nstsv,ngq(iq),nkptnrloc))
 megqblh(:,:,:)=zzero
-allocate(wffvmt_jk(lmmaxapw,nufrmax,natmtot,nstfv))
-allocate(evecfv_jk(nmatmax,nstfv))
-allocate(evecsv_jk(nstsv,nstsv))
 allocate(wfsvmt_jk(lmmaxapw,nufrmax,natmtot,nspinor,nstsv))
+allocate(compact_wfsvmt_jk(compact_wf_index%totsizemt,nspinor,nstsv))
 allocate(wfsvit_jk(ngkmax,nspinor,nstsv))
 allocate(igkignr_jk(ngkmax))
 if (wannier_megq) then
@@ -246,8 +242,7 @@ call timer_reset(t_megqblh_prod)
 do ikstep=1,nkstep
 ! transmit wave-functions
   call timer_start(t_getwfkq)
-  call getwfkq(ikstep,ngknr_jk,igkignr_jk,wfsvmt_jk,wfsvit_jk,evecfv_jk,&
-              &evecsv_jk,wffvmt_jk)
+  call getwfkq(ikstep,ngknr_jk,igkignr_jk,wfsvmt_jk,wfsvit_jk,compact_wfsvmt_jk)
   call timer_stop(t_getwfkq)
 ! compute matrix elements  
   call timer_start(t_genmegqblh)
@@ -256,7 +251,7 @@ do ikstep=1,nkstep
     !               &igkignr_jk,wfsvmtnrloc(1,1,1,1,1,ikstep),wfsvmt_jk,&
     !               &wfsvitnrloc(1,1,1,ikstep),wfsvit_jk)
     call genmegqblh_v3(iq,ikstep,ngknr(ikstep),ngknr_jk,igkignr(1,ikstep),&
-                      &igkignr_jk,wfsvmtnrloc(1,1,1,1,1,ikstep),wfsvmt_jk,&
+                      &igkignr_jk,compact_wfsvmtnrloc(1,1,1,ikstep),compact_wfsvmt_jk,&
                       &wfsvitnrloc(1,1,1,ikstep),wfsvit_jk)
   endif !ikstep.le.nkptnrloc
   call timer_stop(t_genmegqblh)
@@ -344,11 +339,9 @@ if (wproc) then
   write(150,'("Speed (me/sec/proc)                : ",F10.2)')dn1/t2
   call flushifc(150)
 endif
-deallocate(wffvmt_jk)
-deallocate(evecfv_jk)
-deallocate(evecsv_jk)
 deallocate(wfsvmt_jk)
 deallocate(wfsvit_jk)
+deallocate(compact_wfsvmt_jk)
 deallocate(igkignr_jk)
 deallocate(ngntuju)
 deallocate(igntuju)
@@ -433,8 +426,7 @@ call mpi_grid_barrier((/dim_k/))
 return
 end subroutine
 
-subroutine getwfkq(ikstep,ngknr_jk,igkignr_jk,wfsvmt_jk,wfsvit_jk,evecfv_jk,&
-                  &evecsv_jk,wffvmt_jk)
+subroutine getwfkq(ikstep,ngknr_jk,igkignr_jk,wfsvmt_jk,wfsvit_jk,compact_wfsvmt_jk)
 use modmain
 use mod_nrkp
 use mod_wannier
@@ -444,10 +436,8 @@ integer, intent(out) :: ngknr_jk
 integer, intent(out) :: igkignr_jk(ngkmax)
 complex(8), intent(out) :: wfsvmt_jk(lmmaxapw,nufrmax,natmtot,nspinor,nstsv)
 complex(8), intent(out) :: wfsvit_jk(ngkmax,nspinor,nstsv)
-complex(8), intent(out) :: evecfv_jk(nmatmax,nstfv)
-complex(8), intent(out) :: evecsv_jk(nstsv,nstsv)
-complex(8), intent(out) :: wffvmt_jk(lmmaxapw,nufrmax,natmtot,nstfv)
-
+complex(8), intent(out) :: compact_wfsvmt_jk(compact_wf_index%totsizemt,nspinor,nstsv)
+!
 integer i,ik,jk,nkptnrloc1,jkloc,j,tag
 
 ! each proc knows that it needs wave-functions at jk=idxkq(1,ik) (at k'=k+q)
@@ -499,14 +489,9 @@ do i=0,mpi_grid_dim_size(dim_k)-1
                           &(/i/),tag+4)
       endif
       
-      call mpi_grid_send(evecfvnrloc(1,1,1,jkloc),nmatmax*nstfv,(/dim_k/),&
-                        &(/i/),tag+5)
-      
-      call mpi_grid_send(evecsvnrloc(1,1,jkloc),nstsv*nstsv,(/dim_k/),&
-                        &(/i/),tag+6)
-      
-      call mpi_grid_send(wffvmtnrloc(1,1,1,1,jkloc),&
-                        &lmmaxapw*nufrmax*natmtot*nstfv,(/dim_k/),(/i/),tag+7)
+      call mpi_grid_send(compact_wfsvmtnrloc(1,1,1,jkloc),&
+                        &compact_wf_index%totsizemt*nspinor*nstsv,&
+                        &(/dim_k/),(/i/),tag+5)
     endif
     if (mpi_grid_dim_pos(dim_k).eq.i) then
       if (j.ne.i) then
@@ -532,15 +517,9 @@ do i=0,mpi_grid_dim_size(dim_k)-1
                                &(/dim_k/),(/j/),tag+4)
         endif
         
-        call mpi_grid_recieve(evecfv_jk(1,1),nmatmax*nstfv,&
+        call mpi_grid_recieve(compact_wfsvmt_jk(1,1,1),&
+                             &compact_wf_index%totsizemt*nspinor*nstsv,&
                              &(/dim_k/),(/j/),tag+5)
-        
-        call mpi_grid_recieve(evecsv_jk(1,1),nstsv*nstsv,&
-                             &(/dim_k/),(/j/),tag+6)
-
-        call mpi_grid_recieve(wffvmt_jk(1,1,1,1),&
-                             &lmmaxapw*nufrmax*natmtot*nstfv,&
-                             &(/dim_k/),(/j/),tag+7)
       else
 ! local copy
         wfsvmt_jk(:,:,:,:,:)=wfsvmtnrloc(:,:,:,:,:,jkloc)
@@ -548,9 +527,7 @@ do i=0,mpi_grid_dim_size(dim_k)-1
         ngknr_jk=ngknr(jkloc)
         igkignr_jk(:)=igkignr(:,jkloc)
         if (wannier_megq) wann_c_jk(:,:,ikstep)=wanncnrloc(:,:,jkloc)
-        evecfv_jk(:,:)=evecfvnrloc(:,:,1,jkloc)
-        evecsv_jk(:,:)=evecsvnrloc(:,:,jkloc)
-        wffvmt_jk(:,:,:,:)=wffvmtnrloc(:,:,:,:,jkloc)
+        compact_wfsvmt_jk(:,:,:)=compact_wfsvmtnrloc(:,:,:,jkloc)
       endif
     endif
   endif   
@@ -558,196 +535,6 @@ enddo
 call mpi_grid_barrier((/dim_k/))
 return
 end subroutine
-
-!!** subroutine genmegqblh_v2(iq,ikloc,ngknr1,ngknr2,igkignr1,igkignr2,wffvmt1,wffvmt2,&
-!!**                         &evecfv1,evecfv2,evecsv1,evecsv2)
-!!** use modmain
-!!** use mod_addons_q
-!!** use mod_nrkp
-!!** implicit none
-!!** integer, intent(in) :: iq
-!!** integer, intent(in) :: ikloc
-!!** integer, intent(in) :: ngknr1
-!!** integer, intent(in) :: ngknr2
-!!** integer, intent(in) :: igkignr1(ngkmax)
-!!** integer, intent(in) :: igkignr2(ngkmax)
-!!** complex(8), intent(in) :: wffvmt1(lmmaxapw*nufrmax,natmtot,nstfv)
-!!** complex(8), intent(in) :: wffvmt2(lmmaxapw*nufrmax,natmtot,nstfv)
-!!** complex(8), intent(in) :: evecfv1(nmatmax,nstfv)
-!!** complex(8), intent(in) :: evecfv2(nmatmax,nstfv)
-!!** complex(8), intent(in) :: evecsv1(nstsv,nstsv)
-!!** complex(8), intent(in) :: evecsv2(nstsv,nstsv)
-!!** 
-!!** integer sizemt
-!!** integer ivg1(3)
-!!** integer i,j,ik,jk,igkq,n1,ispn1,ispn2,ist1,ist2,ic
-!!** integer ig,ig1,ig2,ias,ifg,ir
-!!** logical l1
-!!** complex(8), allocatable :: wftmp1(:,:)
-!!** complex(8), allocatable :: wfir1(:)
-!!** complex(8), allocatable :: megqfv(:,:,:)
-!!** complex(8) b1(lmmaxapw*nufrmax),b2(lmmaxapw*nufrmax)
-!!** 
-!!** sizemt=lmmaxapw*nufrmax*natmtot
-!!** 
-!!** 
-!!** call papi_timer_start(pt_megqblh)
-!!** 
-!!** ! global k-point
-!!** ik=mpi_grid_map(nkptnr,dim_k,loc=ikloc)
-!!** ! jk=k+q-G_q
-!!** jk=idxkq(1,ik)
-!!** ! G_q vector 
-!!** igkq=idxkq(2,ik)
-!!** 
-!!** allocate(megqfv(nstfv,ngq(iq),nstfv))
-!!** megqfv=zzero
-!!** 
-!!** ! muffin-tin part
-!!** allocate(wftmp1(sizemt,ngq(iq)))
-!!** do ist1=1,nstfv
-!!**   call timer_start(t_megqblh_mt)
-!!**   wftmp1=zzero
-!!**   do ig=1,ngq(iq)
-!!** ! precompute muffint-tin part of \psi_1^{*}(r)*e^{-i(G+q)r}
-!!**     do ias=1,natmtot
-!!**       b1=dconjg(wffvmt1(:,ias,ist1)*sfacgq(ig,ias))
-!!**       ic=ias2ic(ias)
-!!**       b2=zzero
-!!**       do j=1,ngntuju(ic,ig)
-!!**         b2(igntuju(2,j,ic,ig))=b2(igntuju(2,j,ic,ig))+&
-!!**                               &b1(igntuju(1,j,ic,ig))*gntuju(j,ic,ig)
-!!**       enddo
-!!**       wftmp1((ias-1)*lmmaxapw*nufrmax+1:ias*lmmaxapw*nufrmax,ig)=b2(:)
-!!**     enddo !ias
-!!**   enddo !ig  
-!!**   call timer_stop(t_megqblh_mt)
-!!** 
-!!**   call timer_start(t_megqblh_prod)
-!!**   call zgemm('T','N',nstfv,ngq(iq),sizemt,zone,wffvmt2,sizemt,wftmp1,sizemt,&
-!!**             &zzero,megqfv(1,1,ist1),nstfv)
-!!**   call timer_stop(t_megqblh_prod)
-!!** enddo
-!!** deallocate(wftmp1)
-!!** 
-!!** allocate(wftmp1(ngknr2,ngq(iq)))
-!!** allocate(wfir1(ngrtot))
-!!** do ist1=1,nstfv
-!!**   call timer_start(t_megqblh_it)
-!!**   wfir1=zzero
-!!**   do ig1=1,ngknr1
-!!**     ifg=igfft(igkignr1(ig1))
-!!**     wfir1(ifg)=evecfv1(ig1,ist1)
-!!**   enddo
-!!**   call zfftifc(3,ngrid,1,wfir1)
-!!**   do ir=1,ngrtot
-!!**     wfir1(ir)=wfir1(ir)*cfunir(ir)
-!!**   enddo
-!!**   call zfftifc(3,ngrid,-1,wfir1)
-!!**   do ig=1,ngq(iq)
-!!**     do ig2=1,ngknr2
-!!** ! G1=G2-G-Gkq
-!!**       ivg1(:)=ivg(:,igkignr2(ig2))-ivg(:,igqig(ig,iq))-ivg(:,igkq)
-!!**       ifg=igfft(ivgig(ivg1(1),ivg1(2),ivg1(3)))
-!!**       wftmp1(ig2,ig)=dconjg(wfir1(ifg))
-!!**     enddo
-!!**   enddo
-!!**   call timer_stop(t_megqblh_it)
-!!** 
-!!**   call timer_start(t_megqblh_prod)
-!!**   call zgemm('T','N',nstfv,ngq(iq),ngknr2,zone,evecfv2,nmatmax,wftmp1,ngknr2,&
-!!**             &zone,megqfv(1,1,ist1),nstfv)
-!!**   call timer_stop(t_megqblh_prod)
-!!** enddo
-!!** deallocate(wfir1)
-!!** deallocate(wftmp1)
-!!** do i=1,nmegqblh(ikloc)
-!!**   megqblh(i,:,ikloc)=megqfv(bmegqblh(2,i,ikloc),:,bmegqblh(1,i,ikloc))
-!!** enddo
-!!** deallocate(megqfv)
-!!** 
-!!** 
-!!** !!* do ispn1=1,nspinor
-!!** !!*   if (expigqr22.eq.1) ispn2=ispn1
-!!** !!* ! index of the interband transitions
-!!** !!*   i=1
-!!** !!* ! go through the interband transitions    
-!!** !!*   do while (i.le.nmegqblh(ikloc))
-!!** !!* ! left <bra| state 
-!!** !!*     ist1=bmegqblh(1,i,ikloc)
-!!** !!*     wftmp1=zzero
-!!** !!*     l1=.true.
-!!** !!*     if (spinpol) then
-!!** !!*       if (spinor_ud(ispn1,ist1,ik).eq.0) l1=.false.
-!!** !!*     endif
-!!** !!*     if (l1) then
-!!** !!*       call timer_start(3)
-!!** !!*       call papi_timer_start(pt_megqblh_mt)
-!!** !!*       do ig=1,ngq(iq)
-!!** !!* ! precompute muffint-tin part of \psi_1^{*}(r)*e^{-i(G+q)r}
-!!** !!*         do ias=1,natmtot
-!!** !!*           b1=dconjg(wfsvmt1(:,ias,ispn1,ist1)*sfacgq(ig,ias))
-!!** !!*           ic=ias2ic(ias)
-!!** !!*           b2=zzero
-!!** !!*           do j=1,ngntuju(ic,ig)
-!!** !!*             b2(igntuju(2,j,ic,ig))=b2(igntuju(2,j,ic,ig))+&
-!!** !!*               &b1(igntuju(1,j,ic,ig))*gntuju(j,ic,ig)
-!!** !!*           enddo
-!!** !!*           wftmp1((ias-1)*lmmaxapw*nufrmax+1:ias*lmmaxapw*nufrmax,ig)=b2(:)
-!!** !!*         enddo !ias
-!!** !!*       enddo !ig  
-!!** !!*       call timer_stop(3)
-!!** !!*       call papi_timer_stop(pt_megqblh_mt)
-!!** !!* ! interstitial part
-!!** !!*       call papi_timer_start(pt_megqblh_it)
-!!** !!*       call timer_start(4)
-!!** !!*       wfir1=zzero
-!!** !!*       do ig1=1,ngknr1
-!!** !!*         ifg=igfft(igkignr1(ig1))
-!!** !!*         wfir1(ifg)=wfsvit1(ig1,ispn1,ist1)
-!!** !!*       enddo
-!!** !!*       call zfftifc(3,ngrid,1,wfir1)
-!!** !!*       do ir=1,ngrtot
-!!** !!*         wfir1(ir)=wfir1(ir)*cfunir(ir)
-!!** !!*       enddo
-!!** !!*       call zfftifc(3,ngrid,-1,wfir1)
-!!** !!*       do ig=1,ngq(iq)
-!!** !!*         do ig2=1,ngknr2
-!!** !!* ! G1=G2-G-Gkq
-!!** !!*           ivg1(:)=ivg(:,igkignr2(ig2))-ivg(:,igqig(ig,iq))-ivg(:,igkq)
-!!** !!*           ifg=igfft(ivgig(ivg1(1),ivg1(2),ivg1(3)))
-!!** !!*           wftmp1(lmmaxapw*nufrmax*natmtot+ig2,ig)=dconjg(wfir1(ifg))
-!!** !!*         enddo
-!!** !!*       enddo
-!!** !!*       call timer_stop(4)      
-!!** !!*       call papi_timer_stop(pt_megqblh_it)
-!!** !!*     endif !l1
-!!** !!*     call timer_start(5)
-!!** !!*     n1=0
-!!** !!* ! collect right |ket> states into matrix wftmp2
-!!** !!*     do while ((i+n1).le.nmegqblh(ikloc))
-!!** !!*       if (bmegqblh(1,i+n1,ikloc).ne.bmegqblh(1,i,ikloc)) exit
-!!** !!*       ist2=bmegqblh(2,i+n1,ikloc)
-!!** !!*       n1=n1+1
-!!** !!*       call memcopy(wfsvmt2(1,1,1,ispn2,ist2),wftmp2(1,n1),16*lmmaxapw*nufrmax*natmtot)
-!!** !!*       call memcopy(wfsvit2(1,ispn2,ist2),wftmp2(lmmaxapw*nufrmax*natmtot+1,n1),16*ngknr2)
-!!** !!*     enddo !while
-!!** !!* ! update several matrix elements by doing matrix*matrix operation
-!!** !!* !  me(ib,ig)=wftmp2(ig2,ib)^{T}*wftmp1(ig2,ig)
-!!** !!*     call zgemm('T','N',n1,ngq(iq),wfsize,zone,wftmp2,wfsize,wftmp1,wfsize,&
-!!** !!*       &zone,megqblh(i,1,ikloc),nstsv*nstsv)
-!!** !!*     i=i+n1
-!!** !!*     call timer_stop(5)
-!!** !!*   enddo !while
-!!** !!* enddo !ispn
-!!** !!* deallocate(wftmp1)
-!!** !!* deallocate(wftmp2)
-!!** !!* deallocate(wfir1)
-!!** !!* 
-!!** !!* call papi_timer_stop(pt_megqblh)
-!!** 
-!!** return
-!!** end subroutine
 
 subroutine genmegqblh_v3(iq,ikloc,ngknr1,ngknr2,igkignr1,igkignr2,wfsvmt1,wfsvmt2,&
                         &wfsvit1,wfsvit2)
@@ -762,8 +549,8 @@ integer, intent(in) :: ngknr1
 integer, intent(in) :: ngknr2
 integer, intent(in) :: igkignr1(ngkmax)
 integer, intent(in) :: igkignr2(ngkmax)
-complex(8), intent(in) :: wfsvmt1(lmmaxapw*nufrmax,natmtot,nspinor,nstsv)
-complex(8), intent(in) :: wfsvmt2(lmmaxapw*nufrmax,natmtot,nspinor,nstsv)
+complex(8), intent(in) :: wfsvmt1(compact_wf_index%totsizemt,nspinor,nstsv)
+complex(8), intent(in) :: wfsvmt2(compact_wf_index%totsizemt,nspinor,nstsv)
 complex(8), intent(in) :: wfsvit1(ngkmax,nspinor,nstsv)
 complex(8), intent(in) :: wfsvit2(ngkmax,nspinor,nstsv)
 !
@@ -771,16 +558,16 @@ integer ivg1(3)
 integer i,j,ik,jk,igkq,n1,ispn1,ispn2,ist1,ist2,ic
 integer ig,ig1,ig2,ias,ifg,ir,offs,sz
 logical l1
-complex(8), allocatable :: wftmp1_new(:,:)
-complex(8), allocatable :: wftmp2_new(:,:)
+complex(8), allocatable :: wf1gq(:,:)
+complex(8), allocatable :: wftmp2(:,:)
 complex(8), allocatable :: wfir1(:)
 complex(8) b1(lmmaxapw*nufrmax),b2(lmmaxapw*nufrmax)
-integer sizewf,lm,io,l,m,is,lmo
+integer sizewf
 integer num_ifg
 integer, allocatable :: ifg_list(:)
 integer, allocatable :: map_ifg(:)
 logical found
-complex(8), allocatable :: wftmp3(:,:,:)
+complex(8), allocatable :: wf1pw(:,:,:)
 !
 ! global k-point
 ik=mpi_grid_map(nkptnr,dim_k,loc=ikloc)
@@ -790,8 +577,8 @@ jk=idxkq(1,ik)
 igkq=idxkq(2,ik)
 
 sizewf=compact_wf_index%totsizemt+ngknr2
-allocate(wftmp1_new(sizewf,ngq(iq)))
-allocate(wftmp2_new(sizewf,nstsv))
+allocate(wf1gq(sizewf,ngq(iq)))
+allocate(wftmp2(sizewf,nstsv))
 
 allocate(ifg_list(ngrtot))
 allocate(map_ifg(ngrtot))
@@ -817,7 +604,7 @@ enddo
 
 call papi_timer_start(pt_megqblh_it)
 call timer_start(t_megqblh_it)
-allocate(wftmp3(num_ifg,nspinor,nstsv))
+allocate(wf1pw(num_ifg,nspinor,nstsv))
 !$OMP PARALLEL DEFAULT(shared) PRIVATE(wfir1,ispn1,ig1,ifg,ir,ig,ig2,ivg1)
 allocate(wfir1(ngrtot))
 !$OMP DO
@@ -838,7 +625,7 @@ do ist1=1,nstsv
   ! G1=G2-G-Gkq
         ivg1(:)=ivg(:,igkignr2(ig2))-ivg(:,igqig(ig,iq))-ivg(:,igkq)
         ifg=igfft(ivgig(ivg1(1),ivg1(2),ivg1(3)))
-        wftmp3(map_ifg(ifg),ispn1,ist1)=dconjg(wfir1(ifg))
+        wf1pw(map_ifg(ifg),ispn1,ist1)=dconjg(wfir1(ifg))
       enddo
     enddo
   enddo !ispnn
@@ -865,21 +652,20 @@ do ispn1=1,nspinor
     if (l1) then
       call timer_start(t_megqblh_mt)
       call papi_timer_start(pt_megqblh_mt)
-!$OMP PARALLEL DO DEFAULT(shared) PRIVATE(ias,is,ic,b1,b2,j,l,io,lmo,m)
+!$OMP PARALLEL DO DEFAULT(shared) PRIVATE(ias,ic,b1,b2,j,sz,offs)
       do ig=1,ngq(iq)
 ! precompute muffint-tin part of \psi_1^{*}(r)*e^{-i(G+q)r}
         do ias=1,natmtot
-          is=ias2is(ias)
           ic=ias2ic(ias)
-          b1=dconjg(wfsvmt1(:,ias,ispn1,ist1)*sfacgq(ig,ias))
+          offs=compact_wf_index%offsetmt(ias)
+          sz=compact_wf_index%sizemt(ias)
+          b1(1:sz)=dconjg(wfsvmt1(offs+1:offs+sz,ispn1,ist1)*sfacgq(ig,ias))
           b2=zzero
           do j=1,ngntuju(ic,ig)
             b2(igntuju(2,j,ic,ig))=b2(igntuju(2,j,ic,ig))+&
                                   &b1(igntuju(1,j,ic,ig))*gntuju(j,ic,ig)
           enddo
-          offs=compact_wf_index%offsetmt(ias)
-          sz=compact_wf_index%sizemt(ias)
-          wftmp1_new(offs+1:offs+sz,ig)=b2(1:sz)
+          wf1gq(offs+1:offs+sz,ig)=b2(1:sz)
         enddo !ias
       enddo !ig  
 !$OMP END PARALLEL DO
@@ -890,7 +676,7 @@ do ispn1=1,nspinor
 ! G1=G2-G-Gkq
           ivg1(:)=ivg(:,igkignr2(ig2))-ivg(:,igqig(ig,iq))-ivg(:,igkq)
           ifg=igfft(ivgig(ivg1(1),ivg1(2),ivg1(3)))
-          wftmp1_new(compact_wf_index%totsizemt+ig2,ig)=wftmp3(map_ifg(ifg),ispn1,ist1)
+          wf1gq(compact_wf_index%totsizemt+ig2,ig)=wf1pw(map_ifg(ifg),ispn1,ist1)
         enddo
       enddo
     endif !l1
@@ -901,35 +687,24 @@ do ispn1=1,nspinor
       if (bmegqblh(1,i+n1,ikloc).ne.bmegqblh(1,i,ikloc)) exit
       ist2=bmegqblh(2,i+n1,ikloc)
       n1=n1+1
-      do ias=1,natmtot
-        is=ias2is(ias)
-        do l=0,lmaxapw
-          do io=1,nufr(l,is)
-            lmo=1+l*l+(io-1)*lmmaxapw
-            do m=-l,l
-              wftmp2_new(compact_wf_index%offsetmt(ias)+compact_wf_index%idxmt(lmo,ias),n1)=wfsvmt2(lmo,ias,ispn2,ist2)
-              lmo=lmo+1
-            enddo
-          enddo
-        enddo
-      enddo !ias
+      wftmp2(1:compact_wf_index%totsizemt,n1)=wfsvmt2(1:compact_wf_index%totsizemt,ispn2,ist2)
       do ig2=1,ngknr2
-        wftmp2_new(compact_wf_index%totsizemt+ig2,n1)=wfsvit2(ig2,ispn2,ist2)
+        wftmp2(compact_wf_index%totsizemt+ig2,n1)=wfsvit2(ig2,ispn2,ist2)
       enddo
     enddo !while
 ! update several matrix elements by doing matrix*matrix operation
 !  me(ib,ig)=wftmp2(ig2,ib)^{T}*wftmp1(ig2,ig)
-    call zgemm('T','N',n1,ngq(iq),sizewf,zone,wftmp2_new,sizewf,wftmp1_new,sizewf,&
+    call zgemm('T','N',n1,ngq(iq),sizewf,zone,wftmp2,sizewf,wf1gq,sizewf,&
               &zone,megqblh(i,1,ikloc),nstsv*nstsv)
     i=i+n1
     call timer_stop(t_megqblh_prod)
   enddo !while
 enddo !ispn
-deallocate(wftmp1_new)
-deallocate(wftmp2_new)
+deallocate(wf1gq)
+deallocate(wftmp2)
 deallocate(ifg_list)
 deallocate(map_ifg)
-deallocate(wftmp3)
+deallocate(wf1pw)
 call papi_timer_stop(pt_megqblh)
 
 return
