@@ -206,6 +206,8 @@ integer, parameter :: t_genmegqwan=58
 integer, parameter :: t_megqblh_mt=59
 integer, parameter :: t_megqblh_it=60
 integer, parameter :: t_megqblh_prod=61
+integer, parameter :: t_chi0_tot=62
+integer, parameter :: t_chi0_w=63
 
 
 !--------------!

@@ -15,6 +15,10 @@ integer nwloc,iwloc,iw
 character*8 c1,c2
 logical exist
 integer*8, allocatable :: hw_values(:)
+integer num_gq_steps,istep,ngq_
+real(8) gqmin
+real(8), allocatable :: gqcutoff(:)
+integer, allocatable :: ngqtot(:)
 
 call init0
 call init1
@@ -90,7 +94,11 @@ if (mpi_grid_root()) then
         &int(16.d0*megqwantran%nwt*megqwantran%nwt*megqwantran%ntr*nwloc/1048576.d0)
 endif
 call mpi_grid_barrier()
-allocate(u4(megqwantran%nwt,megqwantran%nwt,megqwantran%ntr,nwloc))
+
+num_gq_steps=10
+gqmin=2.0
+
+allocate(u4(megqwantran%nwt,megqwantran%nwt,megqwantran%ntr,nwloc,num_gq_steps))
 u4=zzero
 if (screenu4) then
   megq_include_bands=chi0_include_bands
@@ -99,22 +107,41 @@ else
 endif
 call papi_timer_start(pt_crpa_tot2)
 
+
+allocate(gqcutoff(num_gq_steps))
+allocate(ngqtot(num_gq_steps))
+ngqtot=0
 !==============================================================================!
 ! main loop over q-points                                                      !
 !==============================================================================!
 do iqloc=1,nvqloc
   iq=mpi_grid_map(nvq,dim_q,loc=iqloc)
   call genmegq(iq,.true.,.true.,.false.)
-  call genu4(iq,nwloc)
+
+  do istep=1,num_gq_steps
+    gqcutoff(istep)=gqmin+dble(istep)*(gqmax-gqmin)/num_gq_steps
+    call genu4(iq,ngq_,nwloc,gqcutoff(istep),u4(1,1,1,1,istep))
+    ngqtot(istep)=ngqtot(istep)+ngq_
+  enddo
+
 enddo
 
-do iwloc=1,nwloc
-  do it=1,megqwantran%ntr
-    call mpi_grid_reduce(u4(1,1,it,iwloc),megqwantran%nwt*megqwantran%nwt,dims=(/dim_q/))
+do istep=1,num_gq_steps
+  do iwloc=1,nwloc
+    do it=1,megqwantran%ntr
+      call mpi_grid_reduce(u4(1,1,it,iwloc,istep),megqwantran%nwt*megqwantran%nwt,dims=(/dim_q/))
+    enddo
   enddo
+  call mpi_grid_reduce(ngqtot(istep),1,dims=(/dim_q/))
 enddo
 call papi_timer_stop(pt_crpa_tot2)
 call papi_timer_stop(pt_crpa_tot1)
+
+if (mpi_grid_root()) then
+  do istep=1,num_gq_steps
+    write(*,*)1.d0/gqcutoff(istep), 1.d0/dble(ngqtot(istep)), dreal(u4(1,1,1,1,istep))
+  enddo
+endif
 
 allocate(hw_values(0:papi_ncounters))
 call papi_timer_read(pt_crpa_tot1,hw_values)
@@ -186,7 +213,7 @@ if (mpi_grid_side(dims=(/dim_k/)).and.nwloc.gt.0) then
     endif
     do it=1,megqwantran%ntr
       write(c2,'("t",I7.7)')it
-      call hdf5_write(fu4,"/iwloc/"//c1//"/"//c2,"u4",u4(1,1,it,iwloc),&
+      call hdf5_write(fu4,"/iwloc/"//c1//"/"//c2,"u4",u4(1,1,it,iwloc,num_gq_steps),&
         &(/megqwantran%nwt,megqwantran%nwt/))
     enddo
   enddo
