@@ -12,6 +12,7 @@ complex(8), allocatable :: ylmgknr(:,:,:)
 
 complex(8), allocatable :: wffvmtnrloc(:,:,:,:,:)
 complex(8), allocatable :: wfsvmtnrloc(:,:,:,:,:,:)
+complex(8), allocatable :: compact_wfsvmtnrloc(:,:,:,:)
 complex(8), allocatable :: wfsvitnrloc(:,:,:,:)
 complex(8), allocatable :: wanncnrloc(:,:,:)
 complex(8), allocatable :: pmatnrloc(:,:,:,:)
@@ -22,6 +23,15 @@ complex(8), allocatable :: evecsvnrloc(:,:,:)
 real(8), allocatable :: evalsvnr(:,:)
 real(8), allocatable :: occsvnr(:,:)
 integer, allocatable :: spinor_ud(:,:,:)
+
+type t_compact_wf_index
+  integer, allocatable :: sizemt(:)
+  integer, allocatable :: offsetmt(:)
+  integer, allocatable :: idxmt(:,:)
+  integer :: totsizemt
+end type t_compact_wf_index
+
+type(t_compact_wf_index) :: compact_wf_index
 
 contains
 
@@ -214,7 +224,7 @@ use mod_seceqn
 implicit none
 integer, intent(in) :: fout
 logical, intent(in) :: lpmat
-integer ik,ikloc,n,j,ik1,isym,i,ierr
+integer ik,ikloc,n,j,ik1,isym,i,ierr,ias,is,io,l,lm,m,lmo
 complex(8), allocatable :: apwalm(:,:,:,:)
 real(8) w2,t1,sz
 logical, external :: wann_diel
@@ -261,6 +271,31 @@ endif
 !endif
 call gengknr
 
+
+! generate compact index
+if (allocated(compact_wf_index%idxmt)) deallocate(compact_wf_index%idxmt)
+allocate(compact_wf_index%idxmt(lmmaxapw*nufrmax,natmtot))
+if (allocated(compact_wf_index%sizemt)) deallocate(compact_wf_index%sizemt)
+allocate(compact_wf_index%sizemt(natmtot))
+if (allocated(compact_wf_index%offsetmt)) deallocate(compact_wf_index%offsetmt)
+allocate(compact_wf_index%offsetmt(natmtot))
+compact_wf_index%totsizemt=0
+do ias=1,natmtot
+  compact_wf_index%offsetmt(ias)=compact_wf_index%totsizemt
+  is=ias2is(ias)
+  compact_wf_index%sizemt(ias)=0
+  do l=0,lmaxapw
+    do io=1,nufr(l,is)
+      do m=-l,l
+        lm=(l+1)*l+m+1
+        compact_wf_index%sizemt(ias)=compact_wf_index%sizemt(ias)+1
+        compact_wf_index%idxmt(lm+(io-1)*lmmaxapw,ias)=compact_wf_index%sizemt(ias)
+      enddo
+    enddo
+  enddo 
+  compact_wf_index%totsizemt=compact_wf_index%totsizemt+compact_wf_index%sizemt(ias)
+enddo
+
 if (wproc.and.fout.gt.0) then
 ! eigen-vectors
   if (tsveqn) then
@@ -291,6 +326,8 @@ if (allocated(wffvmtnrloc)) deallocate(wffvmtnrloc)
 allocate(wffvmtnrloc(lmmaxapw,nufrmax,natmtot,nstfv,nkptnrloc))
 if (allocated(wfsvmtnrloc)) deallocate(wfsvmtnrloc)
 allocate(wfsvmtnrloc(lmmaxapw,nufrmax,natmtot,nspinor,nstsv,nkptnrloc))
+if (allocated(compact_wfsvmtnrloc)) deallocate(compact_wfsvmtnrloc)
+allocate(compact_wfsvmtnrloc(compact_wf_index%totsizemt,nspinor,nstsv,nkptnrloc))
 if (allocated(wfsvitnrloc)) deallocate(wfsvitnrloc)
 allocate(wfsvitnrloc(ngkmax,nspinor,nstsv,nkptnrloc))
 if (allocated(evecfvnrloc)) deallocate(evecfvnrloc)
@@ -363,39 +400,55 @@ do ikloc=1,nkptnrloc
   ik=mpi_grid_map(nkptnr,dim_k,loc=ikloc)
 ! generate APW matching coefficients  
   call genapwalm(ngknr(ikloc),gknr(1,ikloc),tpgknr(1,1,ikloc),&
-      &sfacgknr(1,1,ikloc),apwalm)
+                &sfacgknr(1,1,ikloc),apwalm)
   if (tsveqn) then
     call genwffvc(lmaxapw,lmmaxapw,ngknr(ikloc),apwalm,&
-        &evecfvnrloc(1,1,1,ikloc),wffvmtnrloc(1,1,1,1,ikloc))
+                 &evecfvnrloc(1,1,1,ikloc),wffvmtnrloc(1,1,1,1,ikloc))
     call evecsvfd(evecfvnrloc(1,1,1,ikloc),evecsvnrloc(1,1,ikloc),evec)
   else
     evec(:,:)=evecfdnrloc(:,:,ikloc)
   endif
 ! generate wave-functions
   call genwfsvc(lmaxapw,lmmaxapw,ngknr(ikloc),nstsv,apwalm,&
-    &evec,wfsvmtnrloc(1,1,1,1,1,ikloc),wfsvitnrloc(1,1,1,ikloc))
+               &evec,wfsvmtnrloc(1,1,1,1,1,ikloc),wfsvitnrloc(1,1,1,ikloc))
   if (wannier) then
     call wan_gencsv(lmmaxapw,vkcnr(1,ik),evalsvnr(1,ik),&
-      &wfsvmtnrloc(1,1,1,1,1,ikloc),wanncnrloc(1,1,ikloc),ierr) 
+                   &wfsvmtnrloc(1,1,1,1,1,ikloc),wanncnrloc(1,1,ikloc),ierr) 
     if (ierr.ne.0) then
       write(*,'("Warning(genwfnr): Wannier functions are wrong at k-point (ik, vkl) : ",I4,3G18.10)')ik,vklnr(:,ik)
     endif
     if (ldisentangle) then
 ! disentangle bands
       call disentangle(evalsvnr(1,ik),wanncnrloc(1,1,ikloc),&
-        &evecsvnrloc(1,1,ikloc))
+                      &evecsvnrloc(1,1,ikloc))
 ! generate wave-functions again
       call evecsvfd(evecfvnrloc(1,1,1,ikloc),evecsvnrloc(1,1,ikloc),evec)
       call genwfsvc(lmaxapw,lmmaxapw,ngknr(ikloc),nstsv,apwalm,&
-        &evec,wfsvmtnrloc(1,1,1,1,1,ikloc),wfsvitnrloc(1,1,1,ikloc))
+                   &evec,wfsvmtnrloc(1,1,1,1,1,ikloc),wfsvitnrloc(1,1,1,ikloc))
     endif
   endif
   if (lpmat) then
     call timer_start(t_genpmat)
     call genpmatsv(ngknr(ikloc),igkignr(1,ikloc),vgkcnr(1,1,ikloc),&
-      &wfsvmtnrloc(1,1,1,1,1,ikloc),wfsvitnrloc(1,1,1,ikloc),pmatnrloc(1,1,1,ikloc))
+                  &wfsvmtnrloc(1,1,1,1,1,ikloc),wfsvitnrloc(1,1,1,ikloc),&
+                  &pmatnrloc(1,1,1,ikloc))
     call timer_stop(t_genpmat)
   endif
+! generate wf in compact form
+  do ias=1,natmtot
+    is=ias2is(ias)
+    do l=0,lmaxapw
+      do io=1,nufr(l,is)
+        do m=-l,l
+          lm=l*(l+1)+m+1
+          lmo=lm+(io-1)*lmmaxapw
+          compact_wfsvmtnrloc(compact_wf_index%offsetmt(ias)+&
+                             &compact_wf_index%idxmt(lmo,ias),:,:,ikloc)=&
+                             &wfsvmtnrloc(lm,io,ias,:,:,ikloc)
+        enddo
+      enddo
+    enddo
+  enddo
 enddo !ikloc
 deallocate(apwalm,evec)
 call timer_stop(t_genwf)

@@ -3,6 +3,7 @@ use modmain
 use mod_addons_q
 use mod_expigqr
 use mod_util
+use mod_nrkp
 implicit none
 ! arguments
 integer, intent(in) :: iq
@@ -128,7 +129,7 @@ do igloc=1,ngqloc
                   n=ngntuju(ic,ig)
                   gntuju(n,ic,ig)=zt1
                   igntuju(1,n,ic,ig)=lm1+(io1-1)*lmmaxapw
-                  igntuju(2,n,ic,ig)=lm2+(io2-1)*lmmaxapw
+                  igntuju(2,n,ic,ig)=compact_wf_index%idxmt(lm2+(io2-1)*lmmaxapw,ias)
                 endif
               enddo !io2
             enddo !io1
