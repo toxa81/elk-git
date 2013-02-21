@@ -138,8 +138,9 @@ call papi_timer_stop(pt_crpa_tot2)
 call papi_timer_stop(pt_crpa_tot1)
 
 if (mpi_grid_root()) then
+  write(151,*)
   do istep=1,num_gq_steps
-    write(*,*)1.d0/gqcutoff(istep), 1.d0/dble(ngqtot(istep)), dreal(u4(1,1,1,1,istep))
+    write(151,*)1.d0/gqcutoff(istep), 1.d0/gqcutoff(istep)**3, 1.d0/dble(ngqtot(istep)), dreal(u4(1,1,1,1,istep))
   enddo
 endif
 

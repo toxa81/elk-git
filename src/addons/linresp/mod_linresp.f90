@@ -352,11 +352,9 @@ epsilon=zzero
 do ig=1,ngq_
   epsilon(ig,ig)=zone
 enddo
-call zgemm('N','N',ngq_,ngq_,ngq_,-zone,chi0,ngq_,&
-          &krnl,ngq_,zone,epsilon,ngq_)
+call zgemm('N','N',ngq_,ngq_,ngq_,-zone,chi0,ngq_,krnl,ngq_,zone,epsilon,ngq_)
 call invzge(epsilon,ngq_)
-call zgemm('N','N',ngq_,ngq_,ngq_,zone,krnl,ngq_,epsilon,ngq_,&
-          &zzero,vscrn,ngq_)
+call zgemm('N','N',ngq_,ngq_,ngq_,zone,krnl,ngq_,epsilon,ngq_,zzero,vscrn,ngq_)
 if (vq_gamma(iq)) then
   vscrn(ig0q_,ig0q_)=epsilon(ig0q_,ig0q_)*fourpi*q0wt*nkptnr*omega/(twopi**3)
   vscrn(:,:)=vscrn(:,:)/dble(nvq0)

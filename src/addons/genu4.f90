@@ -29,7 +29,6 @@ ngq_=0
 do ig=1,ngq(iq)
   if (gq(ig,iq).le.gqcutoff) ngq_=ngq_+1
 enddo
-write(*,*)"ngq=",ngq(iq)," ngq_=",ngq_
 
 allocate(megqblh_(nstsv*nstsv,ngq_,nkptnrloc))
 igq_=0
